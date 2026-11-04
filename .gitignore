@@ -1,0 +1,16 @@
+## Visual Studio & .NET build output
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## Generated Demo Outputs
+OdxDemoOutput/
+*.xlsx
+*.pdx
+
