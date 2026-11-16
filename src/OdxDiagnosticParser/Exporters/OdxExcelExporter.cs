@@ -147,8 +147,13 @@ public class OdxExcelExporter : IOdxExcelExporter
             ("Total ECU Variants", package.EcuVariants.Count()),
             ("Total Base Variants", package.BaseVariants.Count()),
             ("Total Diagnostic Services (UDS/KWP)", package.TotalServicesCount),
+            ("  * Current Data Services (Live Telemetry)", package.TotalCurrentDataServicesCount),
+            ("  * Stored Data Services (Fault Memory / Ident)", package.TotalStoredDataServicesCount),
+            ("  * System Control Services (Sessions / Security)", package.TotalSystemControlServicesCount),
             ("Total Data Identifiers (DIDs)", package.TotalDidsCount),
-            ("Total Diagnostic Trouble Codes (DTCs)", package.TotalDtcsCount),
+            ("  * Current Data DIDs (Sensors / Measurements)", package.TotalCurrentDataDidsCount),
+            ("  * Stored Data DIDs (Identification / Snapshots)", package.TotalStoredDataDidsCount),
+            ("Total Diagnostic Trouble Codes (Stored DTCs)", package.TotalDtcsCount),
             ("Total Communication Parameters", package.TotalComParamsCount)
         };
 
@@ -218,6 +223,7 @@ public class OdxExcelExporter : IOdxExcelExporter
         var headers = new[]
         {
             "ECU / Layer",
+            "Data Category",
             "Service ID (Hex)",
             "Service Name",
             "Semantic",
@@ -237,26 +243,50 @@ public class OdxExcelExporter : IOdxExcelExporter
             foreach (var svc in layer.Services)
             {
                 ws.Cell(row, 1).Value = layer.ShortName;
-                ws.Cell(row, 2).Value = svc.ServiceIdHex;
+
+                // Data Category (Current Data vs Stored Data vs System Control)
+                ws.Cell(row, 2).Value = svc.DataCategory;
                 ws.Cell(row, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
                 ws.Cell(row, 2).Style.Font.Bold = true;
 
-                ws.Cell(row, 3).Value = svc.ShortName;
-                ws.Cell(row, 4).Value = svc.Semantic;
-                ws.Cell(row, 5).Value = svc.SubFunctionHex;
-                ws.Cell(row, 5).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                if (svc.DataCategory == "Current Data")
+                {
+                    ws.Cell(row, 2).Style.Font.FontColor = XLColor.FromHtml("#0E6655");
+                    ws.Cell(row, 2).Style.Fill.BackgroundColor = XLColor.FromHtml("#E8F8F5");
+                }
+                else if (svc.DataCategory == "Stored Data")
+                {
+                    ws.Cell(row, 2).Style.Font.FontColor = XLColor.FromHtml("#7D6608");
+                    ws.Cell(row, 2).Style.Fill.BackgroundColor = XLColor.FromHtml("#FEF9E7");
+                }
+                else
+                {
+                    ws.Cell(row, 2).Style.Font.FontColor = XLColor.FromHtml("#4A235A");
+                    ws.Cell(row, 2).Style.Fill.BackgroundColor = XLColor.FromHtml("#F4ECF7");
+                }
 
-                ws.Cell(row, 6).Value = svc.PositiveResponseSidHex;
+                ws.Cell(row, 3).Value = svc.ServiceIdHex;
+                ws.Cell(row, 3).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                ws.Cell(row, 3).Style.Font.Bold = true;
+
+                ws.Cell(row, 4).Value = svc.ShortName;
+                ws.Cell(row, 5).Value = svc.Semantic;
+                ws.Cell(row, 6).Value = svc.SubFunctionHex;
                 ws.Cell(row, 6).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
 
-                ws.Cell(row, 7).Value = svc.RequestParameters.Count;
-                ws.Cell(row, 8).Value = svc.ResponseParameters.Count;
-                ws.Cell(row, 9).Value = svc.NegativeResponses.Count > 0 ? string.Join(", ", svc.NegativeResponses) : "Standard UDS";
-                ws.Cell(row, 10).Value = svc.Description;
+                ws.Cell(row, 7).Value = svc.PositiveResponseSidHex;
+                ws.Cell(row, 7).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+
+                ws.Cell(row, 8).Value = svc.RequestParameters.Count;
+                ws.Cell(row, 9).Value = svc.ResponseParameters.Count;
+                ws.Cell(row, 10).Value = svc.NegativeResponses.Count > 0 ? string.Join(", ", svc.NegativeResponses) : "Standard UDS";
+                ws.Cell(row, 11).Value = svc.Description;
 
                 if (row % 2 == 1)
                 {
-                    ws.Range(row, 1, row, headers.Length).Style.Fill.BackgroundColor = XLColor.FromHtml(options.AlternateRowColorHex);
+                    // For alternate rows, shade non-category columns
+                    ws.Cell(row, 1).Style.Fill.BackgroundColor = XLColor.FromHtml(options.AlternateRowColorHex);
+                    ws.Range(row, 3, row, headers.Length).Style.Fill.BackgroundColor = XLColor.FromHtml(options.AlternateRowColorHex);
                 }
 
                 ws.Range(row, 1, row, headers.Length).Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
@@ -276,6 +306,7 @@ public class OdxExcelExporter : IOdxExcelExporter
         var headers = new[]
         {
             "ECU / Layer",
+            "Data Category",
             "DID (Hex)",
             "DID (Dec)",
             "DID Name",
@@ -300,41 +331,59 @@ public class OdxExcelExporter : IOdxExcelExporter
             foreach (var did in layer.DataIdentifiers)
             {
                 ws.Cell(row, 1).Value = layer.ShortName;
-                ws.Cell(row, 2).Value = did.DidHex;
+
+                // Data Category (Current Data vs Stored Data)
+                ws.Cell(row, 2).Value = did.DataCategory;
                 ws.Cell(row, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
                 ws.Cell(row, 2).Style.Font.Bold = true;
 
-                ws.Cell(row, 3).Value = did.DidDecimal;
-                ws.Cell(row, 3).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+                if (did.DataCategory == "Current Data")
+                {
+                    ws.Cell(row, 2).Style.Font.FontColor = XLColor.FromHtml("#0E6655");
+                    ws.Cell(row, 2).Style.Fill.BackgroundColor = XLColor.FromHtml("#E8F8F5");
+                }
+                else
+                {
+                    ws.Cell(row, 2).Style.Font.FontColor = XLColor.FromHtml("#7D6608");
+                    ws.Cell(row, 2).Style.Fill.BackgroundColor = XLColor.FromHtml("#FEF9E7");
+                }
 
-                ws.Cell(row, 4).Value = did.ShortName;
-                ws.Cell(row, 5).Value = did.Access;
-                ws.Cell(row, 5).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                ws.Cell(row, 3).Value = did.DidHex;
+                ws.Cell(row, 3).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                ws.Cell(row, 3).Style.Font.Bold = true;
+
+                ws.Cell(row, 4).Value = did.DidDecimal;
+                ws.Cell(row, 4).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+
+                ws.Cell(row, 5).Value = did.ShortName;
+                ws.Cell(row, 6).Value = did.Access;
+                ws.Cell(row, 6).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
 
                 // Color code access: Read = Green tint, Write/Read-Write = Blue/Amber tint
                 if (did.Access.Contains("Write", StringComparison.OrdinalIgnoreCase))
-                    ws.Cell(row, 5).Style.Font.FontColor = XLColor.FromHtml("#C0392B");
+                    ws.Cell(row, 6).Style.Font.FontColor = XLColor.FromHtml("#C0392B");
                 else
-                    ws.Cell(row, 5).Style.Font.FontColor = XLColor.FromHtml("#27AE60");
+                    ws.Cell(row, 6).Style.Font.FontColor = XLColor.FromHtml("#27AE60");
 
-                ws.Cell(row, 6).Value = did.ByteLength;
-                ws.Cell(row, 6).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
-
-                ws.Cell(row, 7).Value = did.BitLength;
+                ws.Cell(row, 7).Value = did.ByteLength;
                 ws.Cell(row, 7).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
 
-                ws.Cell(row, 8).Value = did.DataType;
-                ws.Cell(row, 9).Value = did.Unit;
-                ws.Cell(row, 10).Value = did.ScalingFactor;
-                ws.Cell(row, 11).Value = did.Offset;
-                ws.Cell(row, 12).Value = did.MinPhysicalValue.HasValue ? did.MinPhysicalValue.Value : "";
-                ws.Cell(row, 13).Value = did.MaxPhysicalValue.HasValue ? did.MaxPhysicalValue.Value : "";
-                ws.Cell(row, 14).Value = did.AssociatedService;
-                ws.Cell(row, 15).Value = did.Description;
+                ws.Cell(row, 8).Value = did.BitLength;
+                ws.Cell(row, 8).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+
+                ws.Cell(row, 9).Value = did.DataType;
+                ws.Cell(row, 10).Value = did.Unit;
+                ws.Cell(row, 11).Value = did.ScalingFactor;
+                ws.Cell(row, 12).Value = did.Offset;
+                ws.Cell(row, 13).Value = did.MinPhysicalValue.HasValue ? did.MinPhysicalValue.Value : "";
+                ws.Cell(row, 14).Value = did.MaxPhysicalValue.HasValue ? did.MaxPhysicalValue.Value : "";
+                ws.Cell(row, 15).Value = did.AssociatedService;
+                ws.Cell(row, 16).Value = did.Description;
 
                 if (row % 2 == 1)
                 {
-                    ws.Range(row, 1, row, headers.Length).Style.Fill.BackgroundColor = XLColor.FromHtml(options.AlternateRowColorHex);
+                    ws.Cell(row, 1).Style.Fill.BackgroundColor = XLColor.FromHtml(options.AlternateRowColorHex);
+                    ws.Range(row, 3, row, headers.Length).Style.Fill.BackgroundColor = XLColor.FromHtml(options.AlternateRowColorHex);
                 }
 
                 ws.Range(row, 1, row, headers.Length).Style.Border.OutsideBorder = XLBorderStyleValues.Thin;

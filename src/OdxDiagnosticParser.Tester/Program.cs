@@ -392,47 +392,75 @@ internal class Program
         }
 
         Console.ForegroundColor = ConsoleColor.Yellow;
-        Console.WriteLine($"\n--- DIAGNOSTIC METRICS ---");
+        Console.WriteLine($"\n--- DIAGNOSTIC METRICS BREAKDOWN ---");
         Console.ResetColor();
         Console.WriteLine($"  Diagnostic Layers:  {package.Layers.Count}");
         Console.WriteLine($"  Total Services:     {package.TotalServicesCount}");
-        Console.WriteLine($"  Total DIDs:         {package.TotalDidsCount}");
-        Console.WriteLine($"  Total DTCs:         {package.TotalDtcsCount}");
-        Console.WriteLine($"  Total ComParams:    {package.TotalComParamsCount}");
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine($"    * Current Data Services:   {package.TotalCurrentDataServicesCount} (Live Telemetry & Measurements)");
+        Console.ForegroundColor = ConsoleColor.DarkYellow;
+        Console.WriteLine($"    * Stored Data Services:    {package.TotalStoredDataServicesCount} (Fault Memory & Identification)");
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        Console.WriteLine($"    * System Control Services: {package.TotalSystemControlServicesCount} (Sessions, Security, Routine)");
+        Console.ResetColor();
+        Console.WriteLine($"  Total Data Identifiers: {package.TotalDidsCount}");
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine($"    * Current Data DIDs:       {package.TotalCurrentDataDidsCount} (Live Sensor Parameters)");
+        Console.ForegroundColor = ConsoleColor.DarkYellow;
+        Console.WriteLine($"    * Stored Data DIDs:        {package.TotalStoredDataDidsCount} (Non-Volatile Identification)");
+        Console.ResetColor();
+        Console.WriteLine($"  Total Trouble Codes (DTCs): {package.TotalDtcsCount} (Stored Fault Memory Records)");
+        Console.WriteLine($"  Total Communication Params: {package.TotalComParamsCount}");
 
         foreach (var layer in package.Layers)
         {
             Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.WriteLine($"\n>>> LAYER: {layer.ShortName} ({layer.LayerType}) <<<");
+            Console.WriteLine($"\n================================================================================");
+            Console.WriteLine($"  DIAGNOSTIC LAYER / ECU: {layer.ShortName} ({layer.LayerType})");
+            Console.WriteLine($"================================================================================");
             Console.ResetColor();
 
-            // Services
-            if (layer.Services.Count > 0)
+            // 1. CURRENT DATA SECTION (Live Telemetry, Sensor DIDs, Periodic Telemetry)
+            var currentServices = layer.Services.Where(s => s.DataCategory == "Current Data").ToList();
+            var currentDids = layer.DataIdentifiers.Where(d => d.DataCategory == "Current Data").ToList();
+
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine($"\n>>> [1] CURRENT DATA (Live Telemetry & Dynamic Measurements) <<<");
+            Console.ResetColor();
+
+            if (currentServices.Count > 0)
             {
-                Console.ForegroundColor = ConsoleColor.White;
-                Console.WriteLine($"  Diagnostic Services ({layer.Services.Count}):");
-                Console.ResetColor();
-                foreach (var s in layer.Services)
+                Console.WriteLine($"  Diagnostic Services ({currentServices.Count}):");
+                foreach (var s in currentServices)
                 {
                     var subFunc = !string.IsNullOrEmpty(s.SubFunctionHex) ? $" [SubFunc: {s.SubFunctionHex}]" : "";
                     var posSid = !string.IsNullOrEmpty(s.PositiveResponseSidHex) ? $" -> PosResp: {s.PositiveResponseSidHex}" : "";
-                    Console.WriteLine($"    * [{s.ServiceIdHex}] {s.ShortName,-32} Semantic: {s.Semantic,-14}{subFunc}{posSid}");
+                    Console.Write("    * ");
+                    Console.ForegroundColor = ConsoleColor.Green;
+                    Console.Write($"[{s.ServiceIdHex}] ");
+                    Console.ResetColor();
+                    Console.WriteLine($"{s.ShortName,-34} Semantic: {s.Semantic,-14}{subFunc}{posSid}");
                 }
             }
-
-            // DIDs
-            if (layer.DataIdentifiers.Count > 0)
+            else
             {
-                Console.ForegroundColor = ConsoleColor.White;
-                Console.WriteLine($"\n  Data Identifiers / DIDs ({layer.DataIdentifiers.Count}):");
-                Console.ResetColor();
-                foreach (var did in layer.DataIdentifiers)
+                Console.WriteLine("  (No Current Data services defined in this layer)");
+            }
+
+            if (currentDids.Count > 0)
+            {
+                Console.WriteLine($"\n  Live Sensor Data Identifiers / DIDs ({currentDids.Count}):");
+                foreach (var did in currentDids)
                 {
                     var unitStr = !string.IsNullOrEmpty(did.Unit) ? $" [{did.Unit}]" : "";
                     var scalingStr = did.ScalingFactor != 1.0 || did.Offset != 0.0 ? $" (Scaling: x{did.ScalingFactor} + {did.Offset})" : "";
                     var accessColor = did.Access.Contains("Write") ? ConsoleColor.Magenta : ConsoleColor.Green;
 
-                    Console.Write($"    * [{did.DidHex}] {did.ShortName,-30} Access: ");
+                    Console.Write("    * ");
+                    Console.ForegroundColor = ConsoleColor.Green;
+                    Console.Write($"[{did.DidHex}] ");
+                    Console.ResetColor();
+                    Console.Write($"{did.ShortName,-30} Access: ");
                     Console.ForegroundColor = accessColor;
                     Console.Write($"{did.Access,-10}");
                     Console.ResetColor();
@@ -440,16 +468,63 @@ internal class Program
                 }
             }
 
-            // DTCs
-            if (layer.DiagnosticTroubleCodes.Count > 0)
+            // 2. STORED DATA SECTION (Recorded Memory, Faults, Freeze Frames, Identification)
+            var storedServices = layer.Services.Where(s => s.DataCategory == "Stored Data").ToList();
+            var storedDids = layer.DataIdentifiers.Where(d => d.DataCategory == "Stored Data").ToList();
+            var dtcs = layer.DiagnosticTroubleCodes;
+
+            Console.ForegroundColor = ConsoleColor.DarkYellow;
+            Console.WriteLine($"\n>>> [2] STORED DATA (Fault Memory, Identification & Historical Records) <<<");
+            Console.ResetColor();
+
+            if (storedServices.Count > 0)
             {
-                Console.ForegroundColor = ConsoleColor.White;
-                Console.WriteLine($"\n  Diagnostic Trouble Codes / DTCs ({layer.DiagnosticTroubleCodes.Count}):");
-                Console.ResetColor();
-                foreach (var dtc in layer.DiagnosticTroubleCodes)
+                Console.WriteLine($"  Stored Data Services ({storedServices.Count}):");
+                foreach (var s in storedServices)
+                {
+                    var subFunc = !string.IsNullOrEmpty(s.SubFunctionHex) ? $" [SubFunc: {s.SubFunctionHex}]" : "";
+                    var posSid = !string.IsNullOrEmpty(s.PositiveResponseSidHex) ? $" -> PosResp: {s.PositiveResponseSidHex}" : "";
+                    Console.Write("    * ");
+                    Console.ForegroundColor = ConsoleColor.DarkYellow;
+                    Console.Write($"[{s.ServiceIdHex}] ");
+                    Console.ResetColor();
+                    Console.WriteLine($"{s.ShortName,-34} Semantic: {s.Semantic,-14}{subFunc}{posSid}");
+                }
+            }
+            else
+            {
+                Console.WriteLine("  (No Stored Data services defined in this layer)");
+            }
+
+            if (storedDids.Count > 0)
+            {
+                Console.WriteLine($"\n  Stored Identification Data Identifiers / DIDs ({storedDids.Count}):");
+                foreach (var did in storedDids)
+                {
+                    var accessColor = did.Access.Contains("Write") ? ConsoleColor.Magenta : ConsoleColor.Green;
+                    Console.Write("    * ");
+                    Console.ForegroundColor = ConsoleColor.DarkYellow;
+                    Console.Write($"[{did.DidHex}] ");
+                    Console.ResetColor();
+                    Console.Write($"{did.ShortName,-30} Access: ");
+                    Console.ForegroundColor = accessColor;
+                    Console.Write($"{did.Access,-10}");
+                    Console.ResetColor();
+                    Console.WriteLine($" Len: {did.ByteLength}B, Type: {did.DataType}");
+                }
+            }
+
+            if (dtcs.Count > 0)
+            {
+                Console.WriteLine($"\n  Stored Diagnostic Trouble Codes / DTCs ({dtcs.Count}):");
+                foreach (var dtc in dtcs)
                 {
                     var sevColor = dtc.Severity.Equals("Fatal", StringComparison.OrdinalIgnoreCase) ? ConsoleColor.Red : ConsoleColor.DarkYellow;
-                    Console.Write($"    * [{dtc.DisplayCode,-10}] Hex: {dtc.TroubleCodeHex,-10} FTB: {dtc.FailureTypeByte,-6} Severity: ");
+                    Console.Write("    * ");
+                    Console.ForegroundColor = ConsoleColor.Yellow;
+                    Console.Write($"[{dtc.DisplayCode,-10}] ");
+                    Console.ResetColor();
+                    Console.Write($"Hex: {dtc.TroubleCodeHex,-10} FTB: {dtc.FailureTypeByte,-6} Severity: ");
                     Console.ForegroundColor = sevColor;
                     Console.Write($"{dtc.Severity,-8}");
                     Console.ResetColor();
@@ -457,11 +532,46 @@ internal class Program
                 }
             }
 
-            // ComParams
+            // 3. SYSTEM CONTROL SECTION (Sessions, Security, Routine Control, Tester Present)
+            var controlServices = layer.Services.Where(s => s.DataCategory == "System Control").ToList();
+            if (controlServices.Count > 0)
+            {
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.WriteLine($"\n>>> [3] SYSTEM & DIAGNOSTIC CONTROL (Sessions, Security, Routines) <<<");
+                Console.ResetColor();
+                Console.WriteLine($"  Control Services ({controlServices.Count}):");
+                foreach (var s in controlServices)
+                {
+                    var subFunc = !string.IsNullOrEmpty(s.SubFunctionHex) ? $" [SubFunc: {s.SubFunctionHex}]" : "";
+                    var posSid = !string.IsNullOrEmpty(s.PositiveResponseSidHex) ? $" -> PosResp: {s.PositiveResponseSidHex}" : "";
+                    Console.Write("    * ");
+                    Console.ForegroundColor = ConsoleColor.Cyan;
+                    Console.Write($"[{s.ServiceIdHex}] ");
+                    Console.ResetColor();
+                    Console.WriteLine($"{s.ShortName,-34} Semantic: {s.Semantic,-14}{subFunc}{posSid}");
+                }
+            }
+
+            // 4. OTHER SERVICES (If any)
+            var otherServices = layer.Services.Where(s => s.DataCategory != "Current Data" && s.DataCategory != "Stored Data" && s.DataCategory != "System Control").ToList();
+            if (otherServices.Count > 0)
+            {
+                Console.ForegroundColor = ConsoleColor.White;
+                Console.WriteLine($"\n>>> [4] OTHER DIAGNOSTIC SERVICES ({otherServices.Count}) <<<");
+                Console.ResetColor();
+                foreach (var s in otherServices)
+                {
+                    var subFunc = !string.IsNullOrEmpty(s.SubFunctionHex) ? $" [SubFunc: {s.SubFunctionHex}]" : "";
+                    var posSid = !string.IsNullOrEmpty(s.PositiveResponseSidHex) ? $" -> PosResp: {s.PositiveResponseSidHex}" : "";
+                    Console.WriteLine($"    * [{s.ServiceIdHex}] {s.ShortName,-34} Category: {s.DataCategory,-14}{subFunc}{posSid}");
+                }
+            }
+
+            // 5. COMMUNICATION PARAMETERS
             if (layer.CommunicationParameters.Count > 0)
             {
                 Console.ForegroundColor = ConsoleColor.White;
-                Console.WriteLine($"\n  Communication Parameters ({layer.CommunicationParameters.Count}):");
+                Console.WriteLine($"\n>>> [5] COMMUNICATION PARAMETERS & BUS TIMINGS ({layer.CommunicationParameters.Count}) <<<");
                 Console.ResetColor();
                 foreach (var cp in layer.CommunicationParameters)
                 {
@@ -510,7 +620,8 @@ internal class Program
         Console.WriteLine("  f. Test PDX Catalog Manifest (index.xml)");
         Console.WriteLine("  g. Test Excel Workbook Generation & Sheets");
         Console.WriteLine("  h. Test Temporary Diagnostic Session Lifecycle & Auto-Cleanup");
-        Console.Write("\nChoice (a-h): ");
+        Console.WriteLine("  i. Test Stored Data vs Current Data Categorization");
+        Console.Write("\nChoice (a-i): ");
 
         var subChoice = Console.ReadLine()?.Trim().ToLowerInvariant();
         var runner = new TestRunner();
@@ -542,6 +653,9 @@ internal class Program
             case "h":
                 runner.RunTest("Temporary Session Lifecycle & Auto-Cleanup", ParserPartTests.TestDiagnosticSessionLifecycle);
                 runner.RunTest("Session Permanent Copy Saving", ParserPartTests.TestDiagnosticSessionSavePermanentCopy);
+                break;
+            case "i":
+                runner.RunTest("Stored vs Current Diagnostic Data Categorization", ParserPartTests.TestStoredAndCurrentDataCategorization);
                 break;
             default:
                 Console.WriteLine("Invalid choice.");

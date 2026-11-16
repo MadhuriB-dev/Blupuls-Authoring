@@ -40,9 +40,34 @@ public class DiagnosticPackage
     public int TotalServicesCount => Layers.Sum(l => l.Services.Count);
 
     /// <summary>
+    /// Total count of Current Data services (live telemetry / measurements) across all layers.
+    /// </summary>
+    public int TotalCurrentDataServicesCount => Layers.Sum(l => l.Services.Count(s => s.DataCategory == "Current Data"));
+
+    /// <summary>
+    /// Total count of Stored Data services (fault memory, DTCs, freeze frames, identification) across all layers.
+    /// </summary>
+    public int TotalStoredDataServicesCount => Layers.Sum(l => l.Services.Count(s => s.DataCategory == "Stored Data"));
+
+    /// <summary>
+    /// Total count of System Control services across all layers.
+    /// </summary>
+    public int TotalSystemControlServicesCount => Layers.Sum(l => l.Services.Count(s => s.DataCategory == "System Control"));
+
+    /// <summary>
     /// Total count of Data Identifiers (DIDs) across all layers.
     /// </summary>
     public int TotalDidsCount => Layers.Sum(l => l.DataIdentifiers.Count);
+
+    /// <summary>
+    /// Total count of Current Data DIDs (sensor & live measurements) across all layers.
+    /// </summary>
+    public int TotalCurrentDataDidsCount => Layers.Sum(l => l.DataIdentifiers.Count(d => d.DataCategory == "Current Data"));
+
+    /// <summary>
+    /// Total count of Stored Data DIDs (identification, VIN, serial, calibration) across all layers.
+    /// </summary>
+    public int TotalStoredDataDidsCount => Layers.Sum(l => l.DataIdentifiers.Count(d => d.DataCategory == "Stored Data"));
 
     /// <summary>
     /// Total count of Diagnostic Trouble Codes (DTCs) across all layers.

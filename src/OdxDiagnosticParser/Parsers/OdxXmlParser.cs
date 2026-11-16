@@ -417,6 +417,9 @@ public class OdxXmlParser : IOdxParser
                 }
             }
 
+            // Categorize service into Current Data, Stored Data, or System Control
+            service.DataCategory = CategorizeService(service.ServiceIdHex, service.Semantic, service.ShortName, service.Description);
+
             layer.Services.Add(service);
         }
     }
@@ -668,7 +671,8 @@ public class OdxXmlParser : IOdxParser
                     LongName = svc.LongName,
                     AssociatedService = svc.ShortName,
                     Description = svc.Description,
-                    Access = isWriteDid ? "Write" : "Read"
+                    Access = isWriteDid ? "Write" : "Read",
+                    DataCategory = CategorizeDataIdentifier(didHex, CleanServiceNameForDid(svc.ShortName), svc.LongName, svc.Description)
                 };
 
                 if (int.TryParse(didHex.Replace("0x", ""), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var didDec))
@@ -705,6 +709,12 @@ public class OdxXmlParser : IOdxParser
                     did.Access = "Read/Write";
                 else if (isReadDid && did.Access == "Write")
                     did.Access = "Read/Write";
+            }
+
+            // Sync service data category with DID category for 0x22 / 0x2E services
+            if (isReadDid || isWriteDid)
+            {
+                svc.DataCategory = did.DataCategory;
             }
         }
 
@@ -820,6 +830,230 @@ public class OdxXmlParser : IOdxParser
 
         var baseCode = $"{prefix}{digit1:X1}{digit2:X1}{digit3:X1}{digit4:X1}";
         return ftb != 0 ? $"{baseCode}-{ftb:X2}" : baseCode;
+    }
+
+    /// <summary>
+    /// Categorizes a UDS/KWP service into "Current Data", "Stored Data", or "System Control".
+    /// </summary>
+    public static string CategorizeService(string serviceIdHex, string semantic, string shortName, string description = "")
+    {
+        var semUpper = (semantic ?? "").ToUpperInvariant().Trim();
+        var sidNorm = (serviceIdHex ?? "").Trim().ToLowerInvariant();
+        var nameUpper = (shortName ?? "").ToUpperInvariant().Trim();
+        var descUpper = (description ?? "").ToUpperInvariant().Trim();
+        var combinedText = $"{nameUpper} {descUpper} {semUpper}";
+
+        // 1. Explicit ODX semantic matching
+        if (semUpper.Contains("SESSION") || semUpper.Contains("SECURITY") ||
+            semUpper.Contains("TESTER-PRESENT") || semUpper.Contains("TESTER_PRESENT") ||
+            semUpper.Contains("ROUTINE") || semUpper.Contains("RESET") ||
+            semUpper.Contains("COMMUNICATION-CONTROL") || semUpper.Contains("COMMUNICATION_CONTROL") ||
+            semUpper.Contains("AUTHENTICATION") || semUpper.Contains("FLASH"))
+        {
+            return "System Control";
+        }
+
+        if (semUpper.Contains("CURRENT-DATA") || semUpper.Contains("CURRENTDATA") ||
+            semUpper.Contains("DYNAMIC-DATA") || semUpper.Contains("DYNAMIC_DATA") ||
+            semUpper.Contains("MEASURED") || semUpper.Contains("LIVE-DATA") ||
+            semUpper.Contains("LIVEDATA") || semUpper.Contains("ACTUAL-VALUE"))
+        {
+            return "Current Data";
+        }
+
+        if (semUpper.Contains("STORED-DATA") || semUpper.Contains("STOREDDATA") ||
+            semUpper.Contains("READ-DTC") || semUpper.Contains("READ_DTC") ||
+            semUpper.Contains("CLEAR-DTC") || semUpper.Contains("CLEAR_DTC") ||
+            semUpper.Contains("FREEZE-FRAME") || semUpper.Contains("FREEZEFRAME") ||
+            semUpper.Contains("SNAPSHOT") || semUpper.Contains("FAULT-MEMORY") ||
+            semUpper.Contains("FAULT_MEMORY") || semUpper.Contains("IDENTIFICATION") ||
+            semUpper.Contains("IDENT") || semUpper.Contains("CODING") ||
+            semUpper.Contains("CALIBRATION") || semUpper.Contains("ADAPTATION"))
+        {
+            return "Stored Data";
+        }
+
+        // 2. Service ID classification according to ISO 14229 / SAE J1979
+        switch (sidNorm)
+        {
+            // Fault memory & recorded historical data
+            case "0x19": // ReadDTCInformation
+            case "0x14": // ClearDiagnosticInformation
+            case "0x85": // ControlDTCSetting
+            case "0x02": // OBD-II FreezeFrame
+            case "0x03": // OBD-II Stored DTCs
+            case "0x04": // OBD-II Clear DTCs
+            case "0x07": // OBD-II Pending DTCs
+            case "0x0A": // OBD-II Permanent DTCs
+                return "Stored Data";
+
+            // Periodic & Dynamic Telemetry
+            case "0x2A": // ReadDataByPeriodicIdentifier
+            case "0x2C": // DynamicallyDefineDataIdentifier
+            case "0x01": // OBD-II Show Current Data
+            case "0x06": // OBD-II On-Board Monitoring Test Results
+                return "Current Data";
+
+            // Diagnostic session & control functions
+            case "0x10": // DiagnosticSessionControl
+            case "0x11": // ECUReset
+            case "0x27": // SecurityAccess
+            case "0x28": // CommunicationControl
+            case "0x29": // Authentication
+            case "0x31": // RoutineControl
+            case "0x3E": // TesterPresent
+            case "0x86": // ResponseOnEvent
+            case "0x87": // LinkControl
+            case "0x34": // RequestDownload
+            case "0x35": // RequestUpload
+            case "0x36": // TransferData
+            case "0x37": // RequestTransferExit
+            case "0x38": // RequestFileTransfer
+                return "System Control";
+        }
+
+        // 3. For 0x22 (ReadDataByIdentifier) or 0x2E (WriteDataByIdentifier) or generic DID services:
+        // Distinguish between Stored Data (VIN, Part Numbers, Serial Numbers, SW/HW Versions, Coding)
+        // vs Current Data (Engine Speed, Coolant Temp, Voltage, Pressure, Sensor values)
+        if (combinedText.Contains("VIN") ||
+            combinedText.Contains("IDENTIF") ||
+            combinedText.Contains("PARTNUMBER") ||
+            combinedText.Contains("PART_NUMBER") ||
+            combinedText.Contains("PART NUMBER") ||
+            combinedText.Contains("SERIALNUMBER") ||
+            combinedText.Contains("SERIAL_NUMBER") ||
+            combinedText.Contains("SERIAL NUMBER") ||
+            combinedText.Contains("SOFTWAREVERSION") ||
+            combinedText.Contains("SOFTWARE_VERSION") ||
+            combinedText.Contains("HARDWAREVERSION") ||
+            combinedText.Contains("HARDWARE_VERSION") ||
+            combinedText.Contains("BOOT_LOADER") ||
+            combinedText.Contains("BOOTLOADER") ||
+            combinedText.Contains("CALIBRATION") ||
+            combinedText.Contains("FINGERPRINT") ||
+            combinedText.Contains("CONFIG") ||
+            combinedText.Contains("CODING") ||
+            combinedText.Contains("FREEZE") ||
+            combinedText.Contains("SNAPSHOT") ||
+            combinedText.Contains("STORED") ||
+            combinedText.Contains("FAULT") ||
+            combinedText.Contains("DTC"))
+        {
+            return "Stored Data";
+        }
+
+        // Check for standard UDS Identification DID range 0xF180 - 0xF1FF or 0xF0xx or 0xF8xx in shortName
+        var didMatch = Regex.Match(nameUpper, @"0?X?(F1[0-9A-F]{2}|F0[0-9A-F]{2}|F8[0-9A-F]{2})");
+        if (didMatch.Success)
+        {
+            return "Stored Data";
+        }
+
+        // Check for Current Data keywords (sensors, live telemetry)
+        if (combinedText.Contains("CURRENT") ||
+            combinedText.Contains("SPEED") ||
+            combinedText.Contains("RPM") ||
+            combinedText.Contains("TEMP") ||
+            combinedText.Contains("TEMPERATURE") ||
+            combinedText.Contains("VOLT") ||
+            combinedText.Contains("VOLTAGE") ||
+            combinedText.Contains("PRESSURE") ||
+            combinedText.Contains("SENSOR") ||
+            combinedText.Contains("ANGLE") ||
+            combinedText.Contains("TORQUE") ||
+            combinedText.Contains("LEVEL") ||
+            combinedText.Contains("FLOW") ||
+            combinedText.Contains("PEDAL") ||
+            combinedText.Contains("DYNAMIC") ||
+            combinedText.Contains("MEASUREMENT") ||
+            combinedText.Contains("LIVE") ||
+            combinedText.Contains("VALUE") ||
+            combinedText.Contains("STATUS"))
+        {
+            return "Current Data";
+        }
+
+        if (sidNorm == "0x22" || sidNorm == "0x2e")
+        {
+            return "Current Data";
+        }
+
+        return "Current Data";
+    }
+
+    /// <summary>
+    /// Categorizes a Data Identifier (DID) into "Current Data" (live sensor telemetry) or "Stored Data" (identification / snapshots).
+    /// </summary>
+    public static string CategorizeDataIdentifier(string didHex, string shortName, string longName = "", string description = "")
+    {
+        var hexUpper = (didHex ?? "").ToUpperInvariant().Trim();
+        var nameUpper = (shortName ?? "").ToUpperInvariant().Trim();
+        var longUpper = (longName ?? "").ToUpperInvariant().Trim();
+        var descUpper = (description ?? "").ToUpperInvariant().Trim();
+        var combined = $"{nameUpper} {longUpper} {descUpper}";
+
+        // 1. Identification keywords
+        if (combined.Contains("VIN") ||
+            combined.Contains("IDENTIF") ||
+            combined.Contains("PART NUMBER") ||
+            combined.Contains("PARTNUMBER") ||
+            combined.Contains("PART_NUMBER") ||
+            combined.Contains("SERIAL") ||
+            combined.Contains("VERSION") ||
+            combined.Contains("CALIBRATION") ||
+            combined.Contains("CODING") ||
+            combined.Contains("FINGERPRINT") ||
+            combined.Contains("MANUFACTURER") ||
+            combined.Contains("SUPPLIER") ||
+            combined.Contains("ECU NAME") ||
+            combined.Contains("ODX FILE") ||
+            combined.Contains("SNAPSHOT") ||
+            combined.Contains("FREEZE") ||
+            combined.Contains("STORED") ||
+            combined.Contains("FAULT") ||
+            combined.Contains("HISTORY"))
+        {
+            return "Stored Data";
+        }
+
+        // 2. DID Hex Range according to ISO 14229-1 Annex C:
+        // 0xF180 - 0xF1FF: Identification Data Identifiers (Stored)
+        // 0xF010 - 0xF0FF: System supplier specific identification (Stored)
+        // 0xF800 - 0xF8FF: Vehicle manufacturer specific identification (Stored)
+        var cleanHex = hexUpper.StartsWith("0X", StringComparison.OrdinalIgnoreCase) ? hexUpper[2..] : hexUpper;
+        if (int.TryParse(cleanHex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var didNum))
+        {
+            if (didNum >= 0xF100 && didNum <= 0xF1FF)
+                return "Stored Data";
+            if (didNum >= 0xF000 && didNum <= 0xF0FF)
+                return "Stored Data";
+            if (didNum >= 0xF800 && didNum <= 0xF8FF)
+                return "Stored Data";
+
+            // Standard live sensor range (0x0100 - 0x01FF OBD-II live PIDs, or 0x0200 - 0xEFFF dynamic DIDs)
+            if (didNum < 0xF000)
+                return "Current Data";
+        }
+
+        // 3. Sensor / telemetry keywords
+        if (combined.Contains("SPEED") ||
+            combined.Contains("RPM") ||
+            combined.Contains("TEMP") ||
+            combined.Contains("TEMPERATURE") ||
+            combined.Contains("VOLT") ||
+            combined.Contains("VOLTAGE") ||
+            combined.Contains("PRESSURE") ||
+            combined.Contains("SENSOR") ||
+            combined.Contains("CURRENT") ||
+            combined.Contains("DYNAMIC") ||
+            combined.Contains("LIVE") ||
+            combined.Contains("MEASUREMENT") ||
+            combined.Contains("ACTUAL"))
+        {
+            return "Current Data";
+        }
+
+        return "Current Data";
     }
 }
 

@@ -12,6 +12,13 @@ public class DiagnosticService
     public string Semantic { get; set; } = string.Empty;
 
     /// <summary>
+    /// Diagnostic Data Category: "Current Data" (Live dynamic telemetry/measurements), 
+    /// "Stored Data" (Fault memory, DTCs, freeze frames, non-volatile identification), 
+    /// or "System Control" (Sessions, Security, Routine, Tester Present).
+    /// </summary>
+    public string DataCategory { get; set; } = "Current Data";
+
+    /// <summary>
     /// Hexadecimal Service ID (e.g., "0x10", "0x22", "0x2E", "0x19", "0x14", "0x27", "0x31").
     /// </summary>
     public string ServiceIdHex { get; set; } = string.Empty;

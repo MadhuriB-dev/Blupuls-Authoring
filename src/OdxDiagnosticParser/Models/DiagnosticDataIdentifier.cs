@@ -26,6 +26,12 @@ public class DiagnosticDataIdentifier
     public string LongName { get; set; } = string.Empty;
 
     /// <summary>
+    /// Diagnostic Data Category: "Current Data" (Live sensor/dynamic measurement) 
+    /// or "Stored Data" (Non-volatile identification, VIN, serial, calibration, freeze-frame).
+    /// </summary>
+    public string DataCategory { get; set; } = "Current Data";
+
+    /// <summary>
     /// Access permissions: "Read", "Write", "Read/Write".
     /// </summary>
     public string Access { get; set; } = "Read";

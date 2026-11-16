@@ -42,6 +42,7 @@ public static class ParserPartTests
         runner.RunTest("12. Full End-to-End Pipeline (PDX -> Parse -> Excel)", TestFullEndToEndPipeline);
         runner.RunTest("13. Temporary Diagnostic Session Lifecycle & Auto-Cleanup", TestDiagnosticSessionLifecycle);
         runner.RunTest("14. Diagnostic Session Permanent Copy Saving", TestDiagnosticSessionSavePermanentCopy);
+        runner.RunTest("15. Stored vs Current Diagnostic Data Categorization", TestStoredAndCurrentDataCategorization);
 
         runner.PrintSummary();
     }
@@ -418,6 +419,81 @@ public static class ParserPartTests
         finally
         {
             TryDeleteDirectory(tempDir);
+        }
+    }
+
+    public static void TestStoredAndCurrentDataCategorization()
+    {
+        var xml = SampleOdxGenerator.CreateSampleOdxXml("EngineControlUnit");
+        var package = OdxParser.ParseXml(xml);
+        var layer = package.Layers[0];
+
+        // 1. Verify Service Categorization
+        var vinService = layer.Services.FirstOrDefault(s => s.ShortName.Contains("VIN"));
+        TestRunner.AssertNotNull(vinService, "VIN service must exist.");
+        TestRunner.AssertEqual("Stored Data", vinService.DataCategory, "VIN service must be categorized as Stored Data.");
+
+        var dtcService = layer.Services.FirstOrDefault(s => s.ServiceIdHex == "0x19");
+        TestRunner.AssertNotNull(dtcService, "0x19 ReadDTCInformation must exist.");
+        TestRunner.AssertEqual("Stored Data", dtcService.DataCategory, "0x19 ReadDTCInformation must be categorized as Stored Data.");
+
+        var clearDtcService = layer.Services.FirstOrDefault(s => s.ServiceIdHex == "0x14");
+        TestRunner.AssertNotNull(clearDtcService, "0x14 ClearDiagnosticInformation must exist.");
+        TestRunner.AssertEqual("Stored Data", clearDtcService.DataCategory, "0x14 ClearDiagnosticInformation must be categorized as Stored Data.");
+
+        var engineSpeedService = layer.Services.FirstOrDefault(s => s.ShortName.Contains("EngineSpeed"));
+        TestRunner.AssertNotNull(engineSpeedService, "EngineSpeed service must exist.");
+        TestRunner.AssertEqual("Current Data", engineSpeedService.DataCategory, "EngineSpeed service must be categorized as Current Data.");
+
+        var coolantTempService = layer.Services.FirstOrDefault(s => s.ShortName.Contains("CoolantTemp"));
+        TestRunner.AssertNotNull(coolantTempService, "CoolantTemp service must exist.");
+        TestRunner.AssertEqual("Current Data", coolantTempService.DataCategory, "CoolantTemp service must be categorized as Current Data.");
+
+        var sessionService = layer.Services.FirstOrDefault(s => s.ServiceIdHex == "0x10");
+        TestRunner.AssertNotNull(sessionService, "0x10 DiagnosticSessionControl must exist.");
+        TestRunner.AssertEqual("System Control", sessionService.DataCategory, "0x10 must be categorized as System Control.");
+
+        // 2. Verify DID Categorization
+        var vinDid = layer.DataIdentifiers.FirstOrDefault(d => d.DidHex == "0xF190");
+        TestRunner.AssertNotNull(vinDid, "0xF190 DID must exist.");
+        TestRunner.AssertEqual("Stored Data", vinDid.DataCategory, "0xF190 VIN DID must be categorized as Stored Data.");
+
+        var rpmDid = layer.DataIdentifiers.FirstOrDefault(d => d.DidHex == "0x010C");
+        TestRunner.AssertNotNull(rpmDid, "0x010C DID must exist.");
+        TestRunner.AssertEqual("Current Data", rpmDid.DataCategory, "0x010C EngineSpeed DID must be categorized as Current Data.");
+
+        var tempDid = layer.DataIdentifiers.FirstOrDefault(d => d.DidHex == "0x0105");
+        TestRunner.AssertNotNull(tempDid, "0x0105 DID must exist.");
+        TestRunner.AssertEqual("Current Data", tempDid.DataCategory, "0x0105 CoolantTemp DID must be categorized as Current Data.");
+
+        // 3. Verify Excel Export has Data Category column
+        var tempFile = Path.Combine(Path.GetTempPath(), "CatTest_" + Guid.NewGuid().ToString("N")[..8] + ".xlsx");
+        try
+        {
+            ExcelExporter.ExportToExcel(package, tempFile);
+            using var workbook = new XLWorkbook(tempFile);
+            var svcSheet = workbook.Worksheet("Diagnostic Services");
+            TestRunner.AssertEqual("Data Category", svcSheet.Cell(1, 2).GetString(), "Services sheet Column 2 header must be 'Data Category'.");
+
+            bool foundStored = false;
+            bool foundCurrent = false;
+            int lastRow = svcSheet.LastRowUsed()?.RowNumber() ?? 0;
+            for (int r = 2; r <= lastRow; r++)
+            {
+                var val = svcSheet.Cell(r, 2).GetString();
+                if (val == "Stored Data") foundStored = true;
+                if (val == "Current Data") foundCurrent = true;
+            }
+            TestRunner.AssertTrue(foundStored, "Excel Services tab must contain 'Stored Data' rows.");
+            TestRunner.AssertTrue(foundCurrent, "Excel Services tab must contain 'Current Data' rows.");
+
+            var didSheet = workbook.Worksheet("Data Identifiers (DIDs)");
+            TestRunner.AssertEqual("Data Category", didSheet.Cell(1, 2).GetString(), "DIDs sheet Column 2 header must be 'Data Category'.");
+        }
+        finally
+        {
+            if (File.Exists(tempFile))
+                File.Delete(tempFile);
         }
     }
 
