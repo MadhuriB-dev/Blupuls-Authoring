@@ -6,6 +6,13 @@ A high-performance C# / .NET library and console utility to parse **ODX** (Open 
 
 ## 🌟 Key Features
 
+* **Automotive Diagnostic Data Categorization (Stored Data vs Current Data)**:
+  - **Categorized Services & DIDs**: Automatically analyzes ODX semantic tags, UDS service IDs (`0x19`, `0x14`, `0x22`, `0x2A`), DID hex ranges (e.g. `0xF180-0xF1FF` for ISO 14229-1 identification records), and telemetry keywords to classify data into:
+    - **`Current Data`**: Real-time telemetry, dynamic measurements, periodic sensor values (Engine Speed, Coolant Temp, Battery Voltage).
+    - **`Stored Data`**: Non-volatile memory, DTC fault records, freeze frames, snapshots, identification (VIN, ECU Part Number, Serial Number, SW/HW Versions).
+    - **`System Control`**: Diagnostic sessions (`0x10`), Security access (`0x27`), Tester present (`0x3E`), Routine control (`0x31`).
+  - **Color-Coded Excel Badges**: Adds a dedicated **"Data Category"** column in the **Diagnostic Services** and **Data Identifiers (DIDs)** sheets with custom styling (Teal badge for Current Data, Amber badge for Stored Data, Purple badge for System Control).
+  - **Structured Console Report**: Displays extracted diagnostic data neatly categorized into dedicated sections for `[1] CURRENT DATA`, `[2] STORED DATA`, `[3] SYSTEM & DIAGNOSTIC CONTROL`, and `[5] COMMUNICATION PARAMETERS`.
 * **Temporary Ephemeral Diagnostic Sessions (Auto-Cleanup on Exit)**:
   - Supports running isolated diagnostic sessions (`DiagnosticSession`): extracts PDX files and generates the Excel report into a dedicated temporary folder during runtime.
   - Automatically launches the temporary Excel report in the default viewer.
@@ -159,9 +166,9 @@ exporter.ExportToExcel(package, "Powertrain_EMS_Report.xlsx");
 
 ## 📊 Generated Excel Workbook Structure
 
-1. **Overview**: Executive package summary, extraction timestamp, vehicle model, ECU diagnostic address, and key diagnostic metrics card.
-2. **Diagnostic Services**: UDS Service ID (Hex), Service Name, Semantic, Sub-Function, Positive Response SID, Parameter counts, NRCs, Description.
-3. **Data Identifiers (DIDs)**: DID Hex (`0xF190`), DID Decimal, Name, Read/Write Access, Length, Data Type, Physical Engineering Unit (`rpm`, `degC`, `V`), Linear Scaling Formula, Min/Max Limits.
+1. **Overview**: Executive package summary, extraction timestamp, vehicle model, ECU diagnostic address, metrics breakdown for Current Data vs Stored Data, and diagnostic layer overview.
+2. **Diagnostic Services**: ECU Layer, **Data Category** ("Current Data" / "Stored Data" / "System Control"), UDS Service ID (Hex), Service Name, Semantic, Sub-Function, Positive Response SID, Parameter counts, NRCs, Description.
+3. **Data Identifiers (DIDs)**: ECU Layer, **Data Category** ("Current Data" vs "Stored Data"), DID Hex (`0xF190`), DID Decimal, Name, Read/Write Access, Length, Data Type, Physical Engineering Unit (`rpm`, `degC`, `V`), Linear Scaling Formula, Min/Max Limits.
 4. **DTCs (Trouble Codes)**: UDS Display Code (`P0100-13`), Trouble Code Hex, Trouble Code Decimal, Failure Type Byte (FTB), Severity, Text Description.
 5. **Communication Parameters**: Parameter Name (`CP_CanId`, `CP_Baudrate`), Value, Unit, Protocol.
 6. **PDX Manifest**: Internal catalog files, file types, relative paths, sizes, and MD5 checksums.
