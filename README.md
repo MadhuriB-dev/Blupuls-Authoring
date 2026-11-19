@@ -175,13 +175,7 @@ exporter.ExportToExcel(package, "Powertrain_EMS_Report.xlsx");
 
 ---
 
-## 📖 In-Depth Approach & Specifications
-For detailed architectural documentation covering:
-* ASAM MCD-2 D and ISO 22901-1 / ISO 22901-2 standard compliance
-* Zip Slip path-traversal prevention algorithms
-* Namespace-tolerant LINQ to XML querying
-* UDS / SAE J2012 DTC 3-byte decoding mathematics
-* Linear scaling and physical unit resolution
-
-Please refer to: **[PDX_ODX_PARSING_APPROACH.md](PDX_ODX_PARSING_APPROACH.md)**.
+## 📖 In-Depth Approach & Complete API Documentation
+* **Complete Developer API Reference & Integration Guide**: **[API_DOCUMENTATION.md](API_DOCUMENTATION.md)** (Every API, parameter, return type, and invocation pattern used across the console tester).
+* **Technical Architecture & Specifications**: **[PDX_ODX_PARSING_APPROACH.md](PDX_ODX_PARSING_APPROACH.md)** (ASAM MCD-2 D, ISO 22901-1 / ISO 22901-2 standard compliance, Zip-Slip algorithms, and UDS DTC math).
 
