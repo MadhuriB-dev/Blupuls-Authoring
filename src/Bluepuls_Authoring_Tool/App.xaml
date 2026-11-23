@@ -1,0 +1,10 @@
+<Application x:Class="Bluepuls_Authoring_Tool.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             StartupUri="Views/MainWindow.xaml">
+    <Application.Resources>
+        <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#ECE9D8"/>
+        <SolidColorBrush x:Key="PanelBackgroundBrush" Color="#FFFFFF"/>
+        <SolidColorBrush x:Key="BorderBrush" Color="#999999"/>
+    </Application.Resources>
+</Application>

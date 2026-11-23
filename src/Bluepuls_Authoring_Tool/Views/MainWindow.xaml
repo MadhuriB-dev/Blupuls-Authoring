@@ -1,0 +1,168 @@
+<Window x:Class="Bluepuls_Authoring_Tool.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:Bluepuls_Authoring_Tool.ViewModels"
+        xmlns:views="clr-namespace:Bluepuls_Authoring_Tool.Views"
+        mc:Ignorable="d"
+        Title="Softing Diagnostic Tool Set - [Bluepuls Authoring Tool]" Height="850" Width="1350"
+        WindowStartupLocation="CenterScreen">
+
+    <Window.DataContext>
+        <vm:MainViewModel/>
+    </Window.DataContext>
+
+    <Window.Resources>
+        <views:NodeTypeVisibilityConverter x:Key="RootFolderConverter" TargetType="RootFolder"/>
+        <views:NodeTypeVisibilityConverter x:Key="ContainerConverter" TargetType="Container"/>
+        <views:NodeTypeVisibilityConverter x:Key="FolderConverter" TargetType="Folder"/>
+        <views:NodeTypeVisibilityConverter x:Key="BaseVariantConverter" TargetType="BaseVariant"/>
+        <views:NodeTypeVisibilityConverter x:Key="ServiceGreenConverter" TargetType="ServiceGreen"/>
+    </Window.Resources>
+
+    <DockPanel Background="#ECE9D8">
+        <!-- Main Classic Menu Bar with Import & Export Enabled -->
+        <Menu DockPanel.Dock="Top" Background="#ECE9D8" Padding="1" FontFamily="Tahoma" FontSize="11">
+            <MenuItem Header="_File">
+                <MenuItem Header="_New"/>
+                <MenuItem Header="_Open..." Command="{Binding ImportCommand}"/>
+                <Separator/>
+                <MenuItem Header="_Import ODX / XML / CSV..." Command="{Binding ImportCommand}"/>
+                <MenuItem Header="_Export ODX / XML / CSV..." Command="{Binding ExportCommand}"/>
+                <Separator/>
+                <MenuItem Header="_Save" Command="{Binding ExportCommand}"/>
+                <Separator/>
+                <MenuItem Header="E_xit" Click="ExitMenuItem_Click"/>
+            </MenuItem>
+            <MenuItem Header="_Edit"/>
+            <MenuItem Header="_View"/>
+            <MenuItem Header="_Insert"/>
+            <MenuItem Header="_Check">
+                <MenuItem Header="_Consistency Check" Command="{Binding ConsistencyCheckCommand}"/>
+            </MenuItem>
+            <MenuItem Header="_Tools">
+                <MenuItem Header="_Import Database..." Command="{Binding ImportCommand}"/>
+                <MenuItem Header="_Export Database..." Command="{Binding ExportCommand}"/>
+            </MenuItem>
+            <MenuItem Header="_Window"/>
+            <MenuItem Header="_Help"/>
+        </Menu>
+
+        <!-- Toolbar Tray with Enabled Import & Export Buttons -->
+        <Border DockPanel.Dock="Top" Background="#ECE9D8" BorderBrush="#999999" BorderThickness="0,1,0,1" Padding="2">
+            <StackPanel Orientation="Horizontal">
+                <Button Width="22" Height="22" Margin="1" ToolTip="New">
+                    <Path Data="M3,3 L13,3 L13,17 L3,17 Z" Stroke="#444" Fill="White" StrokeThickness="1"/>
+                </Button>
+                <Button Width="22" Height="22" Margin="1" ToolTip="Open / Import Database" Command="{Binding ImportCommand}">
+                    <Path Data="M2,6 L7,6 L9,8 L18,8 L18,16 L2,16 Z" Fill="#E6B800" Stroke="#A67C00" StrokeThickness="1"/>
+                </Button>
+                <Button Width="22" Height="22" Margin="1" ToolTip="Save / Export Database" Command="{Binding ExportCommand}">
+                    <Path Data="M3,3 L15,3 L17,5 L17,17 L3,17 Z M5,3 L5,8 L13,8 L13,3" Fill="#3366CC" Stroke="#1A3366" StrokeThickness="1"/>
+                </Button>
+                <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="4,2"/>
+
+                <!-- Explicit Import Button -->
+                <Button Height="22" Padding="6,0" Margin="1" ToolTip="Import ODX / XML / CSV File" Command="{Binding ImportCommand}">
+                    <StackPanel Orientation="Horizontal">
+                        <Path Data="M7,1 L7,10 M4,7 L7,10 L10,7 M2,13 L12,13" Stroke="#0066CC" StrokeThickness="1.6" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                        <TextBlock Text="Import" FontFamily="Tahoma" FontSize="11" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+
+                <!-- Explicit Export Button -->
+                <Button Height="22" Padding="6,0" Margin="1" ToolTip="Export ODX / XML / CSV File" Command="{Binding ExportCommand}">
+                    <StackPanel Orientation="Horizontal">
+                        <Path Data="M7,10 L7,1 M4,4 L7,1 L10,4 M2,13 L12,13" Stroke="#008A3E" StrokeThickness="1.6" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                        <TextBlock Text="Export" FontFamily="Tahoma" FontSize="11" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+
+                <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="4,2"/>
+                <Button Width="22" Height="22" Margin="1" ToolTip="Find">
+                    <Ellipse Width="10" Height="10" Stroke="#333" StrokeThickness="2" Margin="0,0,4,4"/>
+                </Button>
+                <Button Width="22" Height="22" Margin="1" ToolTip="Execute Service">
+                    <Path Data="M4,2 L14,9 L4,16 Z" Fill="#28A745" Stroke="#1E7E34"/>
+                </Button>
+                <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="4,2"/>
+                <Button Width="22" Height="22" Margin="1" ToolTip="Consistency Check" Command="{Binding ConsistencyCheckCommand}">
+                    <Path Data="M3,10 L7,14 L15,4" Stroke="#DC3545" StrokeThickness="2.5"/>
+                </Button>
+
+                <!-- ODX Selection Dropdown -->
+                <TextBlock Text=" ODX: " VerticalAlignment="Center" FontFamily="Tahoma" FontSize="11" FontWeight="Bold"/>
+                <ComboBox ItemsSource="{Binding OdxProjects}" SelectedItem="{Binding SelectedOdxProject, Mode=TwoWay}" Width="170" Height="21" FontFamily="Tahoma" FontSize="11"/>
+
+                <!-- ECU Selection Dropdown -->
+                <TextBlock Text=" ECU: " VerticalAlignment="Center" FontFamily="Tahoma" FontSize="11" FontWeight="Bold" Margin="6,0,0,0"/>
+                <ComboBox ItemsSource="{Binding EcuList}" SelectedItem="{Binding SelectedEcu, Mode=TwoWay}" Width="120" Height="21" FontFamily="Tahoma" FontSize="11"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Main Workspace Area (Bottom tab strip removed as requested) -->
+        <Grid Margin="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="320"/>
+                <ColumnDefinition Width="4"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- LEFT PANEL: Diagnostic Layer Containers TreeView -->
+            <Border Grid.Column="0" Background="White" BorderBrush="#999999" BorderThickness="1">
+                <TreeView ItemsSource="{Binding DiagnosticTreeNodes}" BorderThickness="0" Padding="2" FontFamily="Tahoma" FontSize="11">
+                    <TreeView.ItemContainerStyle>
+                        <Style TargetType="TreeViewItem">
+                            <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+                            <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
+                        </Style>
+                    </TreeView.ItemContainerStyle>
+
+                    <TreeView.ItemTemplate>
+                        <HierarchicalDataTemplate ItemsSource="{Binding Children}">
+                            <StackPanel Orientation="Horizontal" Margin="1,1">
+                                <!-- 1. Root Folder Icon -->
+                                <Grid Visibility="{Binding NodeType, Converter={StaticResource RootFolderConverter}}" Margin="0,0,4,0">
+                                    <Path Data="M1,2 L5,2 L7,4 L13,4 L13,11 L1,11 Z" Fill="#E6C200" Stroke="#A68A00" StrokeThickness="0.8" Width="13" Height="11"/>
+                                </Grid>
+
+                                <!-- 2. Container Icon -->
+                                <Canvas Visibility="{Binding NodeType, Converter={StaticResource ContainerConverter}}" Margin="0,0,4,0" Width="14" Height="14">
+                                    <Rectangle Canvas.Left="0" Canvas.Top="0" Width="10" Height="8" Fill="#00A859" Stroke="#005A30" StrokeThickness="0.8"/>
+                                    <Rectangle Canvas.Left="3" Canvas.Top="4" Width="10" Height="8" Fill="#00C86E" Stroke="#005A30" StrokeThickness="0.8"/>
+                                </Canvas>
+
+                                <!-- 3. Sub-Folder Icon -->
+                                <Grid Visibility="{Binding NodeType, Converter={StaticResource FolderConverter}}" Margin="0,0,4,0">
+                                    <Path Data="M1,2 L5,2 L7,4 L13,4 L13,11 L1,11 Z" Fill="#E6C200" Stroke="#A68A00" StrokeThickness="0.8" Width="13" Height="11"/>
+                                </Grid>
+
+                                <!-- 4. ECU BaseVariant Icon (Red Circle with Yellow 'E') -->
+                                <Grid Visibility="{Binding NodeType, Converter={StaticResource BaseVariantConverter}}" Margin="0,0,4,0" Width="14" Height="14">
+                                    <Ellipse Width="14" Height="14" Fill="#FF0000" Stroke="#A00000" StrokeThickness="0.8"/>
+                                    <TextBlock Text="E" Foreground="#FFFF00" FontWeight="Bold" FontSize="10" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-1,0,0"/>
+                                </Grid>
+
+                                <!-- 5. Green Service Up-Arrow Icon -->
+                                <Grid Visibility="{Binding NodeType, Converter={StaticResource ServiceGreenConverter}}" Margin="0,0,4,0" Width="12" Height="12">
+                                    <Path Data="M2,10 L10,2 M4,2 L10,2 L10,8" Stroke="#00A859" StrokeThickness="2"/>
+                                </Grid>
+
+                                <!-- Node Text Label -->
+                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" FontFamily="Tahoma" FontSize="11"/>
+                            </StackPanel>
+                        </HierarchicalDataTemplate>
+                    </TreeView.ItemTemplate>
+                </TreeView>
+            </Border>
+
+            <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch" Background="#ECE9D8"/>
+
+            <!-- RIGHT PANEL: Empty Page -->
+            <Border Grid.Column="2" Background="#ECE9D8" BorderBrush="#999999" BorderThickness="1">
+                <!-- Empty right workspace page -->
+            </Border>
+        </Grid>
+    </DockPanel>
+</Window>

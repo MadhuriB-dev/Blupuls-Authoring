@@ -40,11 +40,12 @@ A high-performance C# / .NET library and console utility to parse **ODX** (Open 
 
 ---
 
-## 📁 Solution Architecture (1 Parser + 1 Tester in 1 Solution)
+## 📁 Solution Architecture (3 Projects in 1 Solution)
 
 ```
 Blupuls-Authoring/
-├── OdxDiagnosticParser.sln                # Single Visual Studio 2022 Solution (2 Projects)
+├── OdxDiagnosticParser.sln                # Single Visual Studio 2022 Solution (3 Projects)
+├── API_DOCUMENTATION.md                   # Complete developer API reference & guide
 ├── PDX_ODX_PARSING_APPROACH.md            # In-depth technical architecture & specification
 ├── README.md                              # Project documentation
 └── src/
@@ -69,10 +70,17 @@ Blupuls-Authoring/
     │   │   └── ExcelExportOptions.cs      # Styling & sheet configuration
     │   └── Samples/                       # Built-in sample generator
     │       └── SampleOdxGenerator.cs
-    └── OdxDiagnosticParser.Tester/        # [PROJECT 2] Connected Console Tester & Test Runner
-        ├── Program.cs                     # Interactive CLI menu & command routing
-        └── Tests/                         # Comprehensive parser part test functions
-            ├── TestRunner.cs              # Lightweight test execution engine
+    ├── OdxDiagnosticParser.Tester/        # [PROJECT 2] Connected Console Tester & Test Runner
+    │   ├── Program.cs                     # Interactive CLI menu & command routing
+    │   └── Tests/                         # Comprehensive parser part test functions
+    │       ├── TestRunner.cs              # Lightweight test execution engine
+    │       └── ParserPartTests.cs         # 15 dedicated test functions for every parser part
+    └── Bluepuls_Authoring_Tool/           # [PROJECT 3] WPF Desktop Authoring Tool (net8.0-windows)
+        ├── Views/                         # MainWindow UI with DLC hierarchy & toolbars
+        ├── ViewModels/                    # MainViewModel with ODX/PDX import & export
+        ├── Models/                        # DlcTreeNode, DiagnosticLogItem
+        └── Utilities/                     # RelayCommand, ObservableObject
+```
             └── ParserPartTests.cs         # Dedicated test functions for every parser part
 ```
 
