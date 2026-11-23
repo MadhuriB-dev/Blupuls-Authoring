@@ -2,6 +2,8 @@ using System;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
+using Bluepuls_Authoring_Tool.Models;
+using Bluepuls_Authoring_Tool.ViewModels;
 
 namespace Bluepuls_Authoring_Tool.Views
 {
@@ -10,6 +12,14 @@ namespace Bluepuls_Authoring_Tool.Views
         public MainWindow()
         {
             InitializeComponent();
+        }
+
+        private void TreeView_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
+        {
+            if (DataContext is MainViewModel vm && e.NewValue is DlcTreeNode selectedNode)
+            {
+                vm.OnTreeNodeSelected(selectedNode);
+            }
         }
 
         private void ExitMenuItem_Click(object sender, RoutedEventArgs e)
@@ -24,7 +34,7 @@ namespace Bluepuls_Authoring_Tool.Views
 
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            if (value is string nodeType && nodeType == TargetType)
+            if (value is string nodeType && string.Equals(nodeType, TargetType, StringComparison.OrdinalIgnoreCase))
             {
                 return Visibility.Visible;
             }

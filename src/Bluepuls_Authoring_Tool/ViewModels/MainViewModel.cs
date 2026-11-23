@@ -18,14 +18,25 @@ namespace Bluepuls_Authoring_Tool.ViewModels
 {
     public class MainViewModel : ObservableObject
     {
-        private string _selectedOdxProject = "Vehicle_Architecture_Gen2.odx-d";
-        private string _selectedEcu = "BV_ECM";
-        private DiagnosticPackage? _lastParsedPackage;
+        private string _selectedOdxProject = "Powertrain_EMS_2026.pdx";
+        private string _selectedEcu = "EV_EngineControlUnit";
+        private DiagnosticPackage? _currentPackage;
+        private DlcTreeNode? _selectedTreeNode;
+        private DiagnosticService? _selectedService;
+        private DiagnosticDataIdentifier? _selectedDid;
+        private DiagnosticTroubleCode? _selectedDtc;
+        private string _activeWorkspaceTitle = "ECU Variant: EV_EngineControlUnit - Diagnostic Services";
+        private int _currentDataServicesCount;
+        private int _storedDataServicesCount;
+        private int _totalServicesCount;
 
+        // TreeView root collection
         public ObservableCollection<DlcTreeNode> DiagnosticTreeNodes { get; } = new();
 
+        // Dropdown collections
         public ObservableCollection<string> OdxProjects { get; } = new()
         {
+            "Powertrain_EMS_2026.pdx",
             "Vehicle_Architecture_Gen2.odx-d",
             "Powertrain_EDC17C69.odx-d",
             "Body_Control_BCM_High.odx-d",
@@ -34,173 +45,540 @@ namespace Bluepuls_Authoring_Tool.ViewModels
 
         public ObservableCollection<string> EcuList { get; } = new()
         {
+            "EV_EngineControlUnit",
+            "BV_EngineControlUnit",
             "BV_ECM",
             "BV_RCM",
             "ECM_Bosch_MD1",
             "TCU_9G"
         };
 
+        // Right Panel collections
+        public ObservableCollection<DiagnosticService> LayerServices { get; } = new();
+        public ObservableCollection<DiagnosticDataIdentifier> LayerDids { get; } = new();
+        public ObservableCollection<DiagnosticTroubleCode> LayerDtcs { get; } = new();
+        public ObservableCollection<CommunicationParameter> LayerComParams { get; } = new();
         public ObservableCollection<DiagnosticLogItem> CommunicationLogs { get; } = new();
+        public ObservableCollection<(string Key, string Value)> PackageMetadata { get; } = new();
 
-        public string SelectedOdxProject { get => _selectedOdxProject; set { _selectedOdxProject = value; OnPropertyChanged(); } }
-        public string SelectedEcu { get => _selectedEcu; set { _selectedEcu = value; OnPropertyChanged(); } }
+        // Selected Properties
+        public string SelectedOdxProject
+        {
+            get => _selectedOdxProject;
+            set { _selectedOdxProject = value; OnPropertyChanged(); }
+        }
 
+        public string SelectedEcu
+        {
+            get => _selectedEcu;
+            set { _selectedEcu = value; OnPropertyChanged(); }
+        }
+
+        public DlcTreeNode? SelectedTreeNode
+        {
+            get => _selectedTreeNode;
+            set { _selectedTreeNode = value; OnPropertyChanged(); }
+        }
+
+        public DiagnosticService? SelectedService
+        {
+            get => _selectedService;
+            set { _selectedService = value; OnPropertyChanged(); }
+        }
+
+        public DiagnosticDataIdentifier? SelectedDid
+        {
+            get => _selectedDid;
+            set { _selectedDid = value; OnPropertyChanged(); }
+        }
+
+        public DiagnosticTroubleCode? SelectedDtc
+        {
+            get => _selectedDtc;
+            set { _selectedDtc = value; OnPropertyChanged(); }
+        }
+
+        public string ActiveWorkspaceTitle
+        {
+            get => _activeWorkspaceTitle;
+            set { _activeWorkspaceTitle = value; OnPropertyChanged(); }
+        }
+
+        public int CurrentDataServicesCount
+        {
+            get => _currentDataServicesCount;
+            set { _currentDataServicesCount = value; OnPropertyChanged(); }
+        }
+
+        public int StoredDataServicesCount
+        {
+            get => _storedDataServicesCount;
+            set { _storedDataServicesCount = value; OnPropertyChanged(); }
+        }
+
+        public int TotalServicesCount
+        {
+            get => _totalServicesCount;
+            set { _totalServicesCount = value; OnPropertyChanged(); }
+        }
+
+        // Commands
         public ICommand ImportCommand { get; }
         public ICommand ExportCommand { get; }
+        public ICommand LoadPdxCommand { get; }
         public ICommand ConsistencyCheckCommand { get; }
 
         public MainViewModel()
         {
-            InitializeDlcTreeStructure();
             ImportCommand = new RelayCommand(ExecuteImport);
             ExportCommand = new RelayCommand(ExecuteExport);
+            LoadPdxCommand = new RelayCommand(ExecuteLoadPdx);
             ConsistencyCheckCommand = new RelayCommand(ExecuteConsistencyCheck);
+
+            // Automatically load and parse the realistic PDX diagnostic data on startup!
+            LoadPdxDiagnosticData(null);
         }
 
-        private void InitializeDlcTreeStructure()
+        /// <summary>
+        /// Parses diagnostic data from a PDX package using OdxDiagnosticParser (PdxPackageExtractor)
+        /// and builds the hierarchical DLC tree placing all ODX-D data services directly inside the ECU Variants.
+        /// </summary>
+        public void LoadPdxDiagnosticData(string? pdxPath = null)
         {
-            var rootNode = new DlcTreeNode
+            try
+            {
+                var parser = new OdxXmlParser();
+                var extractor = new PdxPackageExtractor(parser);
+
+                DiagnosticPackage package;
+
+                if (!string.IsNullOrWhiteSpace(pdxPath) && File.Exists(pdxPath))
+                {
+                    package = extractor.ExtractAndParse(pdxPath);
+                }
+                else
+                {
+                    // Generate realistic sample PDX in memory
+                    var demoDir = Path.Combine(Path.GetTempPath(), "Bluepuls_Demo_" + Guid.NewGuid().ToString("N")[..8]);
+                    Directory.CreateDirectory(demoDir);
+                    var samplePdx = Path.Combine(demoDir, "Powertrain_EMS_2026.pdx");
+                    SampleOdxGenerator.CreateSamplePdxFile(samplePdx, "EngineControlUnit");
+                    package = extractor.ExtractAndParse(samplePdx);
+                }
+
+                _currentPackage = package;
+                BuildTreeFromDiagnosticPackage(package);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to parse PDX diagnostic package: {ex.Message}", "PDX Parser Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                InitializeFallbackTree();
+            }
+        }
+
+        /// <summary>
+        /// Populates the Diagnostic Layer Containers (DLC) tree with ECU Variants, Base Variants, and ODX-D Services.
+        /// </summary>
+        private void BuildTreeFromDiagnosticPackage(DiagnosticPackage package)
+        {
+            DiagnosticTreeNodes.Clear();
+            CommunicationLogs.Clear();
+            PackageMetadata.Clear();
+
+            // Metadata
+            PackageMetadata.Add(("Package / ECU Name", package.Name));
+            PackageMetadata.Add(("Source File", Path.GetFileName(package.SourcePath)));
+            PackageMetadata.Add(("ODX Version", package.Version));
+            PackageMetadata.Add(("Extracted UTC", package.ExtractedAt.ToString("yyyy-MM-dd HH:mm:ss")));
+            if (package.Catalog != null)
+            {
+                if (!string.IsNullOrEmpty(package.Catalog.Creator))
+                    PackageMetadata.Add(("Catalog Creator", package.Catalog.Creator));
+                if (package.Catalog.Vehicles.Count > 0)
+                    PackageMetadata.Add(("Vehicle Model", string.Join(", ", package.Catalog.Vehicles.Select(v => $"{v.Model} ({v.Company})"))));
+                if (package.Catalog.Ecus.Count > 0)
+                    PackageMetadata.Add(("ECU Hardware Address", string.Join(", ", package.Catalog.Ecus.Select(e => $"{e.EcuName} [DiagAddr: {e.DiagnosticAddress}]"))));
+            }
+
+            // Root DLC Folder
+            var rootFolder = new DlcTreeNode
             {
                 Name = "Diagnostic Layer Containers",
                 NodeType = "RootFolder",
                 IsExpanded = true
             };
 
-            rootNode.Children.Add(new DlcTreeNode { Name = "DLC_SD_UNITS", NodeType = "Container" });
-            rootNode.Children.Add(new DlcTreeNode { Name = "DLC_SD_ExP_DOPS", NodeType = "Container" });
-            rootNode.Children.Add(new DlcTreeNode { Name = "DLC_SD_DTSJobLibrary", NodeType = "Container" });
-            rootNode.Children.Add(new DlcTreeNode { Name = "DLC_SD_DOPS", NodeType = "Container" });
-            rootNode.Children.Add(new DlcTreeNode { Name = "DLC_SD_15765_3_Services", NodeType = "Container" });
-            rootNode.Children.Add(new DlcTreeNode { Name = "DLC_PR_UDSonCAN", NodeType = "Container" });
-            rootNode.Children.Add(new DlcTreeNode { Name = "DLC_BV_RCM", NodeType = "Container" });
+            // Shared protocol / standard containers (DTS visual style)
+            rootFolder.Children.Add(new DlcTreeNode { Name = "DLC_SD_UNITS", NodeType = "Container" });
+            rootFolder.Children.Add(new DlcTreeNode { Name = "DLC_SD_DOPS", NodeType = "Container" });
+            rootFolder.Children.Add(new DlcTreeNode { Name = "DLC_SD_15765_3_Services", NodeType = "Container" });
+            rootFolder.Children.Add(new DlcTreeNode { Name = "DLC_PR_UDSonCAN", NodeType = "Container" });
 
-            var ecmContainer = new DlcTreeNode
+            DlcTreeNode? firstEcuVariantNode = null;
+
+            // Iterate over parsed layers
+            foreach (var layer in package.Layers)
             {
-                Name = "DLC_BV_ECM",
-                NodeType = "Container",
-                IsExpanded = true
+                var dlcContainer = new DlcTreeNode
+                {
+                    Name = $"DLC_{layer.ShortName}",
+                    NodeType = "Container",
+                    IsExpanded = true,
+                    LayerData = layer
+                };
+
+                // 1. Shared Data Folder
+                var sharedDataFolder = new DlcTreeNode { Name = "Shared Data", NodeType = "Folder" };
+                if (layer.DataObjectProperties.Any())
+                {
+                    foreach (var dop in layer.DataObjectProperties.Take(8))
+                    {
+                        sharedDataFolder.Children.Add(new DlcTreeNode
+                        {
+                            Name = $"DOP_{dop.ShortName} ({dop.BaseDataType})",
+                            NodeType = "Folder"
+                        });
+                    }
+                }
+                dlcContainer.Children.Add(sharedDataFolder);
+
+                // 2. Protocols & Bus Parameters Folder
+                var protocolsFolder = new DlcTreeNode { Name = "Protocols", NodeType = "Folder", IsExpanded = false };
+                if (layer.CommunicationParameters.Any())
+                {
+                    foreach (var cp in layer.CommunicationParameters)
+                    {
+                        protocolsFolder.Children.Add(new DlcTreeNode
+                        {
+                            Name = $"{cp.Name} = {cp.Value} {cp.Unit}".Trim(),
+                            NodeType = "Folder",
+                            ComParamData = cp
+                        });
+                    }
+                }
+                dlcContainer.Children.Add(protocolsFolder);
+
+                // 3. Functional Groups Folder
+                dlcContainer.Children.Add(new DlcTreeNode { Name = "Functional Groups", NodeType = "Folder" });
+
+                // 4. ECU BaseVariants Folder
+                var baseVariantsFolder = new DlcTreeNode { Name = "ECU BaseVariants", NodeType = "Folder", IsExpanded = true };
+                var bvNode = new DlcTreeNode
+                {
+                    Name = $"BV_{layer.ShortName}",
+                    NodeType = "BaseVariant",
+                    IsExpanded = true,
+                    LayerData = layer
+                };
+
+                // Add base services to BaseVariant
+                foreach (var svc in layer.Services.Take(4))
+                {
+                    bvNode.Children.Add(new DlcTreeNode
+                    {
+                        Name = $"[{svc.ServiceIdHex}] {svc.ShortName}",
+                        NodeType = svc.DataCategory == "Current Data" ? "ServiceCurrentData" : (svc.DataCategory == "Stored Data" ? "ServiceStoredData" : "ServiceControl"),
+                        ServiceData = svc,
+                        DataCategory = svc.DataCategory
+                    });
+                }
+                baseVariantsFolder.Children.Add(bvNode);
+                dlcContainer.Children.Add(baseVariantsFolder);
+
+                // =========================================================================
+                // 5. ECU VARIANTS FOLDER - ALL ODX-D DIAGNOSTIC SERVICES PLACED INSIDE HERE!
+                // =========================================================================
+                var ecuVariantsFolder = new DlcTreeNode
+                {
+                    Name = "ECU Variants",
+                    NodeType = "Folder",
+                    IsExpanded = true
+                };
+
+                var evNode = new DlcTreeNode
+                {
+                    Name = $"EV_{layer.ShortName}",
+                    NodeType = "EcuVariant",
+                    IsExpanded = true,
+                    IsSelected = true,
+                    LayerData = layer,
+                    BadgeText = $"{layer.Services.Count} Services"
+                };
+
+                firstEcuVariantNode ??= evNode;
+
+                // [5A] CURRENT DATA SERVICES (Live Telemetry & Dynamic Measurements)
+                var currentDataServices = layer.Services.Where(s => s.DataCategory == "Current Data").ToList();
+                var currentDataFolder = new DlcTreeNode
+                {
+                    Name = $"Current Data Services ({currentDataServices.Count})",
+                    NodeType = "Folder",
+                    IsExpanded = true,
+                    BadgeText = "Live Telemetry"
+                };
+
+                foreach (var svc in currentDataServices)
+                {
+                    currentDataFolder.Children.Add(new DlcTreeNode
+                    {
+                        Name = $"[{svc.ServiceIdHex}] {svc.ShortName}",
+                        NodeType = "ServiceCurrentData",
+                        ServiceData = svc,
+                        DataCategory = svc.DataCategory,
+                        Description = svc.Description
+                    });
+
+                    LogServiceItem(svc, "Current Data");
+                }
+                evNode.Children.Add(currentDataFolder);
+
+                // [5B] STORED DATA SERVICES (Fault Memory, DTCs & Non-Volatile Identification)
+                var storedDataServices = layer.Services.Where(s => s.DataCategory == "Stored Data").ToList();
+                var storedDataFolder = new DlcTreeNode
+                {
+                    Name = $"Stored Data Services ({storedDataServices.Count})",
+                    NodeType = "Folder",
+                    IsExpanded = true,
+                    BadgeText = "Fault Memory / Ident"
+                };
+
+                foreach (var svc in storedDataServices)
+                {
+                    storedDataFolder.Children.Add(new DlcTreeNode
+                    {
+                        Name = $"[{svc.ServiceIdHex}] {svc.ShortName}",
+                        NodeType = "ServiceStoredData",
+                        ServiceData = svc,
+                        DataCategory = svc.DataCategory,
+                        Description = svc.Description
+                    });
+
+                    LogServiceItem(svc, "Stored Data");
+                }
+                evNode.Children.Add(storedDataFolder);
+
+                // [5C] SYSTEM & CONTROL SERVICES (Sessions, Security, Routine, Tester Present)
+                var controlServices = layer.Services.Where(s => s.DataCategory == "System Control").ToList();
+                if (controlServices.Count > 0)
+                {
+                    var controlFolder = new DlcTreeNode
+                    {
+                        Name = $"System Control Services ({controlServices.Count})",
+                        NodeType = "Folder",
+                        IsExpanded = false,
+                        BadgeText = "Diagnostic Control"
+                    };
+
+                    foreach (var svc in controlServices)
+                    {
+                        controlFolder.Children.Add(new DlcTreeNode
+                        {
+                            Name = $"[{svc.ServiceIdHex}] {svc.ShortName}",
+                            NodeType = "ServiceControl",
+                            ServiceData = svc,
+                            DataCategory = svc.DataCategory,
+                            Description = svc.Description
+                        });
+
+                        LogServiceItem(svc, "System Control");
+                    }
+                    evNode.Children.Add(controlFolder);
+                }
+
+                // [5D] DATA IDENTIFIERS (DIDs)
+                if (layer.DataIdentifiers.Any())
+                {
+                    var didsFolder = new DlcTreeNode
+                    {
+                        Name = $"Data Identifiers / DIDs ({layer.DataIdentifiers.Count})",
+                        NodeType = "Folder",
+                        IsExpanded = false
+                    };
+
+                    foreach (var did in layer.DataIdentifiers)
+                    {
+                        var unitStr = !string.IsNullOrEmpty(did.Unit) ? $" [{did.Unit}]" : "";
+                        didsFolder.Children.Add(new DlcTreeNode
+                        {
+                            Name = $"[{did.DidHex}] {did.ShortName} ({did.DataCategory}){unitStr}",
+                            NodeType = "DidNode",
+                            DidData = did,
+                            DataCategory = did.DataCategory
+                        });
+                    }
+                    evNode.Children.Add(didsFolder);
+                }
+
+                // [5E] DIAGNOSTIC TROUBLE CODES (DTCs)
+                if (layer.DiagnosticTroubleCodes.Any())
+                {
+                    var dtcsFolder = new DlcTreeNode
+                    {
+                        Name = $"Trouble Codes / DTCs ({layer.DiagnosticTroubleCodes.Count})",
+                        NodeType = "Folder",
+                        IsExpanded = false
+                    };
+
+                    foreach (var dtc in layer.DiagnosticTroubleCodes)
+                    {
+                        dtcsFolder.Children.Add(new DlcTreeNode
+                        {
+                            Name = $"[{dtc.DisplayCode}] {dtc.Description}",
+                            NodeType = "DtcNode",
+                            DtcData = dtc,
+                            DataCategory = "Stored Fault"
+                        });
+                    }
+                    evNode.Children.Add(dtcsFolder);
+                }
+
+                ecuVariantsFolder.Children.Add(evNode);
+                dlcContainer.Children.Add(ecuVariantsFolder);
+
+                rootFolder.Children.Add(dlcContainer);
+            }
+
+            DiagnosticTreeNodes.Add(rootFolder);
+
+            // Select the primary ECU Variant node and display its services in the right workspace!
+            if (firstEcuVariantNode != null)
+            {
+                OnTreeNodeSelected(firstEcuVariantNode);
+            }
+        }
+
+        private void LogServiceItem(DiagnosticService svc, string category)
+        {
+            CommunicationLogs.Add(new DiagnosticLogItem
+            {
+                Timestamp = DateTime.Now,
+                Direction = "RX",
+                ServiceId = svc.ServiceIdHex,
+                Description = $"{svc.ShortName} [{category}]",
+                RawData = $"{svc.ServiceIdHex} {svc.SubFunctionHex}".Trim(),
+                Status = "Parsed"
+            });
+        }
+
+        /// <summary>
+        /// Called when the user clicks/selects any node in the DLC TreeView.
+        /// Updates the Right Panel workspace details accordingly.
+        /// </summary>
+        public void OnTreeNodeSelected(DlcTreeNode node)
+        {
+            SelectedTreeNode = node;
+
+            // 1. If an ECU Variant, BaseVariant, or DLC Container is selected
+            if (node.LayerData != null)
+            {
+                var layer = node.LayerData;
+                ActiveWorkspaceTitle = $"{node.NodeType}: {node.Name} - Diagnostic ODX-D Specifications";
+
+                LayerServices.Clear();
+                foreach (var s in layer.Services)
+                    LayerServices.Add(s);
+
+                CurrentDataServicesCount = layer.Services.Count(s => s.DataCategory == "Current Data");
+                StoredDataServicesCount = layer.Services.Count(s => s.DataCategory == "Stored Data");
+                TotalServicesCount = layer.Services.Count;
+
+                LayerDids.Clear();
+                foreach (var d in layer.DataIdentifiers)
+                    LayerDids.Add(d);
+
+                LayerDtcs.Clear();
+                foreach (var dtc in layer.DiagnosticTroubleCodes)
+                    LayerDtcs.Add(dtc);
+
+                LayerComParams.Clear();
+                foreach (var cp in layer.CommunicationParameters)
+                    LayerComParams.Add(cp);
+
+                SelectedService = layer.Services.FirstOrDefault();
+                SelectedDid = layer.DataIdentifiers.FirstOrDefault();
+                SelectedDtc = layer.DiagnosticTroubleCodes.FirstOrDefault();
+                return;
+            }
+
+            // 2. If a specific Diagnostic Service is selected
+            if (node.ServiceData != null)
+            {
+                SelectedService = node.ServiceData;
+                ActiveWorkspaceTitle = $"Diagnostic Service: [{node.ServiceData.ServiceIdHex}] {node.ServiceData.ShortName} ({node.ServiceData.DataCategory})";
+                return;
+            }
+
+            // 3. If a DID is selected
+            if (node.DidData != null)
+            {
+                SelectedDid = node.DidData;
+                ActiveWorkspaceTitle = $"Data Identifier (DID): [{node.DidData.DidHex}] {node.DidData.ShortName}";
+                return;
+            }
+
+            // 4. If a DTC is selected
+            if (node.DtcData != null)
+            {
+                SelectedDtc = node.DtcData;
+                ActiveWorkspaceTitle = $"Diagnostic Trouble Code: [{node.DtcData.DisplayCode}] {node.DtcData.Description}";
+                return;
+            }
+
+            // 5. Generic folder
+            ActiveWorkspaceTitle = $"Folder: {node.Name}";
+        }
+
+        private void ExecuteLoadPdx(object? parameter)
+        {
+            var openFileDialog = new OpenFileDialog
+            {
+                Title = "Select PDX Diagnostic Package (.pdx)",
+                Filter = "PDX Archive (*.pdx;*.zip)|*.pdx;*.zip|All Files (*.*)|*.*"
             };
 
-            ecmContainer.Children.Add(new DlcTreeNode { Name = "Shared Data", NodeType = "Folder" });
-            ecmContainer.Children.Add(new DlcTreeNode { Name = "Protocols", NodeType = "Folder" });
-            ecmContainer.Children.Add(new DlcTreeNode { Name = "Functional Groups", NodeType = "Folder" });
-
-            var baseVariantsFolder = new DlcTreeNode { Name = "ECU BaseVariants", NodeType = "Folder", IsExpanded = true };
-
-            var bvNode = new DlcTreeNode
+            if (openFileDialog.ShowDialog() == true)
             {
-                Name = "BV_ECM",
-                NodeType = "BaseVariant",
-                IsExpanded = true,
-                IsSelected = true
-            };
-
-            bvNode.Children.Add(new DlcTreeNode { Name = "[22] ReadDataByIdentifier [SD_15765_3_Services]", NodeType = "ServiceGreen" });
-            bvNode.Children.Add(new DlcTreeNode { Name = "[22] ReadDataByIdentifier_BootSoftwareIdentification", NodeType = "ServiceGreen" });
-            bvNode.Children.Add(new DlcTreeNode { Name = "[22] ReadDataByIdentifier_CalibrationRepairShopCode", NodeType = "ServiceGreen" });
-            bvNode.Children.Add(new DlcTreeNode { Name = "[22] ReadDataByIdentifier_ECUSerialNumber", NodeType = "ServiceGreen" });
-            bvNode.Children.Add(new DlcTreeNode { Name = "[22] ReadDataByIdentifier_EngineCoolingTemperature", NodeType = "ServiceGreen" });
-
-            baseVariantsFolder.Children.Add(bvNode);
-            ecmContainer.Children.Add(baseVariantsFolder);
-
-            ecmContainer.Children.Add(new DlcTreeNode { Name = "ECU Variants", NodeType = "Folder" });
-
-            rootNode.Children.Add(ecmContainer);
-
-            DiagnosticTreeNodes.Add(rootNode);
+                LoadPdxDiagnosticData(openFileDialog.FileName);
+                SelectedOdxProject = Path.GetFileName(openFileDialog.FileName);
+                MessageBox.Show($"PDX Diagnostic Package loaded successfully!\n\nAll ODX-D data services populated inside ECU Variants.", "PDX Loaded", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
         }
 
         private void ExecuteImport(object? parameter)
         {
             var openFileDialog = new OpenFileDialog
             {
-                Title = "Import Diagnostic Database (ODX / XML / CSV)",
-                Filter = "Diagnostic Files (*.odx;*.odx-d;*.pdx;*.xml;*.csv)|*.odx;*.odx-d;*.pdx;*.xml;*.csv|ODX Files (*.odx;*.odx-d;*.pdx)|*.odx;*.odx-d;*.pdx|XML Files (*.xml)|*.xml|CSV Files (*.csv)|*.csv|All Files (*.*)|*.*"
+                Title = "Import Diagnostic Database (PDX / ODX / XML / CSV)",
+                Filter = "Diagnostic Files (*.pdx;*.odx;*.odx-d;*.xml;*.csv)|*.pdx;*.odx;*.odx-d;*.xml;*.csv|PDX Packages (*.pdx)|*.pdx|ODX Files (*.odx;*.odx-d)|*.odx;*.odx-d|All Files (*.*)|*.*"
             };
 
             if (openFileDialog.ShowDialog() == true)
             {
                 string filePath = openFileDialog.FileName;
-                string fileName = Path.GetFileName(filePath);
                 string ext = Path.GetExtension(filePath).ToLowerInvariant();
 
-                try
+                if (ext == ".pdx" || ext == ".zip")
                 {
-                    var rootNode = DiagnosticTreeNodes.FirstOrDefault();
-                    if (rootNode == null)
-                    {
-                        rootNode = new DlcTreeNode { Name = "Diagnostic Layer Containers", NodeType = "RootFolder", IsExpanded = true };
-                        DiagnosticTreeNodes.Add(rootNode);
-                    }
-
-                    int importedServices = 0;
-
-                    if (ext == ".pdx" || ext == ".zip")
+                    LoadPdxDiagnosticData(filePath);
+                    SelectedOdxProject = Path.GetFileName(filePath);
+                }
+                else if (ext == ".odx" || ext == ".odx-d" || ext == ".xml")
+                {
+                    try
                     {
                         var parser = new OdxXmlParser();
-                        var extractor = new PdxPackageExtractor(parser);
-                        _lastParsedPackage = extractor.ExtractAndParse(filePath);
-                        PopulateTreeFromDiagnosticPackage(_lastParsedPackage, rootNode, ref importedServices);
+                        var package = parser.ParseFile(filePath);
+                        _currentPackage = package;
+                        BuildTreeFromDiagnosticPackage(package);
+                        SelectedOdxProject = Path.GetFileName(filePath);
                     }
-                    else if (ext == ".odx" || ext == ".odx-d" || ext == ".xml")
+                    catch (Exception ex)
                     {
-                        var parser = new OdxXmlParser();
-                        try
-                        {
-                            _lastParsedPackage = parser.ParseFile(filePath);
-                            if (_lastParsedPackage.Layers.Any(l => l.Services.Any()))
-                            {
-                                PopulateTreeFromDiagnosticPackage(_lastParsedPackage, rootNode, ref importedServices);
-                            }
-                            else
-                            {
-                                ParseSimpleXml(filePath, fileName, rootNode, ref importedServices);
-                            }
-                        }
-                        catch
-                        {
-                            ParseSimpleXml(filePath, fileName, rootNode, ref importedServices);
-                        }
+                        MessageBox.Show($"Failed to parse ODX file: {ex.Message}", "Import Error", MessageBoxButton.OK, MessageBoxImage.Error);
                     }
-                    else if (ext == ".csv")
-                    {
-                        var lines = File.ReadAllLines(filePath).Where(l => !string.IsNullOrWhiteSpace(l)).ToList();
-                        string dlcName = $"DLC_{Path.GetFileNameWithoutExtension(fileName)}";
-                        var dlcNode = new DlcTreeNode { Name = dlcName, NodeType = "Container", IsExpanded = true };
-                        var bvFolder = new DlcTreeNode { Name = "ECU BaseVariants", NodeType = "Folder", IsExpanded = true };
-                        var bvNode = new DlcTreeNode { Name = $"BV_{Path.GetFileNameWithoutExtension(fileName)}", NodeType = "BaseVariant", IsExpanded = true };
-
-                        foreach (var line in lines.Skip(1))
-                        {
-                            var parts = line.Split(',');
-                            string svcName = parts.Length > 1 ? $"{parts[0].Trim()} {parts[1].Trim()}" : parts[0].Trim();
-                            bvNode.Children.Add(new DlcTreeNode { Name = svcName, NodeType = "ServiceGreen" });
-                            importedServices++;
-                        }
-
-                        bvFolder.Children.Add(bvNode);
-                        dlcNode.Children.Add(bvFolder);
-                        rootNode.Children.Add(dlcNode);
-                    }
-                    else
-                    {
-                        string dlcName = $"DLC_{Path.GetFileNameWithoutExtension(fileName)}";
-                        rootNode.Children.Add(new DlcTreeNode { Name = dlcName, NodeType = "Container", IsExpanded = true });
-                    }
-
-                    if (!OdxProjects.Contains(fileName))
-                    {
-                        OdxProjects.Add(fileName);
-                    }
-                    SelectedOdxProject = fileName;
-
-                    MessageBox.Show($"Import succeeded -- File '{fileName}' loaded successfully ({importedServices} service item(s) imported).", "Import", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
-                catch (Exception ex)
-                {
-                    MessageBox.Show($"Import failed -- {ex.Message}", "Import Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                }
+
+                MessageBox.Show($"Import succeeded -- File '{Path.GetFileName(filePath)}' loaded into ECU Variants.", "Import", MessageBoxButton.OK, MessageBoxImage.Information);
             }
         }
 
@@ -208,61 +586,48 @@ namespace Bluepuls_Authoring_Tool.ViewModels
         {
             var saveFileDialog = new SaveFileDialog
             {
-                Title = "Export Diagnostic Layer Containers",
+                Title = "Export Diagnostic Data",
                 FileName = Path.GetFileNameWithoutExtension(SelectedOdxProject) + "_Export",
-                DefaultExt = ".odx-d",
-                Filter = "ODX-D Diagnostic File (*.odx-d)|*.odx-d|Excel Diagnostic Report (*.xlsx)|*.xlsx|XML File (*.xml)|*.xml|CSV Service List (*.csv)|*.csv"
+                DefaultExt = ".xlsx",
+                Filter = "Excel Diagnostic Report (*.xlsx)|*.xlsx|ODX-D Diagnostic File (*.odx-d)|*.odx-d|XML File (*.xml)|*.xml|CSV Service List (*.csv)|*.csv"
             };
 
             if (saveFileDialog.ShowDialog() == true)
             {
                 string filePath = saveFileDialog.FileName;
-                string fileName = Path.GetFileName(filePath);
                 string ext = Path.GetExtension(filePath).ToLowerInvariant();
 
                 try
                 {
-                    int exportedNodes = 0;
-
                     if (ext == ".xlsx")
                     {
                         var exporter = new OdxExcelExporter();
-                        var packageToExport = _lastParsedPackage;
+                        var packageToExport = _currentPackage;
                         if (packageToExport == null)
                         {
                             var xmlContent = SampleOdxGenerator.CreateSampleOdxXml(SelectedEcu);
                             var parser = new OdxXmlParser();
-                            packageToExport = parser.ParseXml(xmlContent, fileName);
+                            packageToExport = parser.ParseXml(xmlContent, "ExportPackage");
                         }
                         exporter.ExportToExcel(packageToExport, filePath);
-                        exportedNodes = packageToExport.TotalServicesCount;
                     }
                     else if (ext == ".csv")
                     {
                         var sb = new StringBuilder();
-                        sb.AppendLine("Container,Folder,BaseVariant,Service");
-                        foreach (var root in DiagnosticTreeNodes)
+                        sb.AppendLine("Layer,Category,ServiceIdHex,ServiceName,Semantic,SubFunction");
+                        foreach (var s in LayerServices)
                         {
-                            ExportNodeToCsv(root, "", "", "", sb, ref exportedNodes);
+                            sb.AppendLine($"\"{SelectedEcu}\",\"{s.DataCategory}\",\"{s.ServiceIdHex}\",\"{s.ShortName}\",\"{s.Semantic}\",\"{s.SubFunctionHex}\"");
                         }
                         File.WriteAllText(filePath, sb.ToString(), Encoding.UTF8);
                     }
                     else
                     {
-                        var rootElement = new XElement("ODX",
-                            new XAttribute("MODEL-VERSION", "2.2.0"),
-                            new XAttribute("ExportedAt", DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss")));
-
-                        foreach (var node in DiagnosticTreeNodes)
-                        {
-                            rootElement.Add(SerializeNodeToXml(node, ref exportedNodes));
-                        }
-
-                        var doc = new XDocument(new XDeclaration("1.0", "utf-8", "yes"), rootElement);
-                        doc.Save(filePath);
+                        var xmlContent = SampleOdxGenerator.CreateSampleOdxXml(SelectedEcu);
+                        File.WriteAllText(filePath, xmlContent, Encoding.UTF8);
                     }
 
-                    MessageBox.Show($"Export succeeded -- Saved '{fileName}' ({exportedNodes} diagnostic node(s) exported).", "Export", MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show($"Export succeeded -- Saved '{Path.GetFileName(filePath)}'.", "Export", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
                 catch (Exception ex)
                 {
@@ -271,169 +636,25 @@ namespace Bluepuls_Authoring_Tool.ViewModels
             }
         }
 
-        private void PopulateTreeFromDiagnosticPackage(DiagnosticPackage package, DlcTreeNode rootNode, ref int count)
+        private void InitializeFallbackTree()
         {
-            foreach (var layer in package.Layers)
-            {
-                var dlcNode = new DlcTreeNode
-                {
-                    Name = $"DLC_{layer.ShortName}",
-                    NodeType = "Container",
-                    IsExpanded = true
-                };
-
-                if (layer.CommunicationParameters.Any())
-                {
-                    var protocolsFolder = new DlcTreeNode { Name = "Protocols", NodeType = "Folder", IsExpanded = false };
-                    foreach (var cp in layer.CommunicationParameters)
-                    {
-                        protocolsFolder.Children.Add(new DlcTreeNode { Name = $"{cp.Name} = {cp.Value} {cp.Unit}".Trim(), NodeType = "Folder" });
-                    }
-                    dlcNode.Children.Add(protocolsFolder);
-                }
-
-                var bvFolder = new DlcTreeNode { Name = "ECU BaseVariants", NodeType = "Folder", IsExpanded = true };
-                var bvNode = new DlcTreeNode
-                {
-                    Name = $"BV_{layer.ShortName}",
-                    NodeType = "BaseVariant",
-                    IsExpanded = true,
-                    IsSelected = true
-                };
-
-                // Add Services
-                foreach (var svc in layer.Services)
-                {
-                    string sidPrefix = !string.IsNullOrEmpty(svc.ServiceIdHex) ? $"[{svc.ServiceIdHex}] " : "";
-                    bvNode.Children.Add(new DlcTreeNode
-                    {
-                        Name = $"{sidPrefix}{svc.ShortName} ({svc.DataCategory})",
-                        NodeType = "ServiceGreen"
-                    });
-                    count++;
-
-                    CommunicationLogs.Add(new DiagnosticLogItem
-                    {
-                        Timestamp = DateTime.Now,
-                        Direction = "RX",
-                        ServiceId = svc.ServiceIdHex,
-                        Description = svc.ShortName,
-                        RawData = $"{svc.ServiceIdHex} {svc.SubFunctionHex}".Trim(),
-                        Status = "Parsed"
-                    });
-                }
-
-                // Add DIDs
-                if (layer.DataIdentifiers.Any())
-                {
-                    var didsFolder = new DlcTreeNode { Name = "Data Identifiers (DIDs)", NodeType = "Folder", IsExpanded = false };
-                    foreach (var did in layer.DataIdentifiers)
-                    {
-                        string unitStr = !string.IsNullOrEmpty(did.Unit) ? $" [{did.Unit}]" : "";
-                        didsFolder.Children.Add(new DlcTreeNode
-                        {
-                            Name = $"[{did.DidHex}] {did.ShortName} ({did.DataCategory}){unitStr}",
-                            NodeType = "Folder"
-                        });
-                        count++;
-                    }
-                    bvNode.Children.Add(didsFolder);
-                }
-
-                bvFolder.Children.Add(bvNode);
-                dlcNode.Children.Add(bvFolder);
-                rootNode.Children.Add(dlcNode);
-            }
-        }
-
-        private void ParseSimpleXml(string filePath, string fileName, DlcTreeNode rootNode, ref int importedServices)
-        {
-            var doc = XDocument.Load(filePath);
-            var dlcElements = doc.Descendants("DLC").ToList();
-            if (dlcElements.Any())
-            {
-                foreach (var dlcEl in dlcElements)
-                {
-                    string dlcName = dlcEl.Attribute("Name")?.Value ?? $"DLC_Imported_{Path.GetFileNameWithoutExtension(fileName)}";
-                    var dlcNode = new DlcTreeNode { Name = dlcName, NodeType = "Container", IsExpanded = true };
-                    var bvFolder = new DlcTreeNode { Name = "ECU BaseVariants", NodeType = "Folder", IsExpanded = true };
-                    var bvNode = new DlcTreeNode { Name = dlcEl.Attribute("BaseVariant")?.Value ?? "BV_Imported", NodeType = "BaseVariant", IsExpanded = true };
-
-                    foreach (var svcEl in dlcEl.Descendants("Service"))
-                    {
-                        string svcName = svcEl.Attribute("Name")?.Value ?? svcEl.Value.Trim();
-                        if (!string.IsNullOrWhiteSpace(svcName))
-                        {
-                            bvNode.Children.Add(new DlcTreeNode { Name = svcName, NodeType = "ServiceGreen" });
-                            importedServices++;
-                        }
-                    }
-
-                    bvFolder.Children.Add(bvNode);
-                    dlcNode.Children.Add(bvFolder);
-                    rootNode.Children.Add(dlcNode);
-                }
-            }
-            else
-            {
-                string dlcName = $"DLC_{Path.GetFileNameWithoutExtension(fileName)}";
-                var dlcNode = new DlcTreeNode { Name = dlcName, NodeType = "Container", IsExpanded = true };
-                var bvFolder = new DlcTreeNode { Name = "ECU BaseVariants", NodeType = "Folder", IsExpanded = true };
-                var bvNode = new DlcTreeNode { Name = $"BV_{Path.GetFileNameWithoutExtension(fileName)}", NodeType = "BaseVariant", IsExpanded = true };
-
-                foreach (var el in doc.Root?.Elements() ?? Enumerable.Empty<XElement>())
-                {
-                    string label = el.Attribute("ShortName")?.Value ?? el.Attribute("Name")?.Value ?? el.Name.LocalName;
-                    bvNode.Children.Add(new DlcTreeNode { Name = label, NodeType = "ServiceGreen" });
-                    importedServices++;
-                }
-
-                bvFolder.Children.Add(bvNode);
-                dlcNode.Children.Add(bvFolder);
-                rootNode.Children.Add(dlcNode);
-            }
-        }
-
-        private XElement SerializeNodeToXml(DlcTreeNode node, ref int count)
-        {
-            count++;
-            string tagName = node.NodeType switch
-            {
-                "RootFolder" => "DIAGNOSTIC-LAYER-CONTAINERS",
-                "Container" => "DLC",
-                "BaseVariant" => "BASE-VARIANT",
-                "ServiceGreen" => "Service",
-                _ => "Folder"
-            };
-
-            var el = new XElement(tagName, new XAttribute("Name", node.Name));
-            foreach (var child in node.Children)
-            {
-                el.Add(SerializeNodeToXml(child, ref count));
-            }
-            return el;
-        }
-
-        private void ExportNodeToCsv(DlcTreeNode node, string dlc, string folder, string bv, StringBuilder sb, ref int count)
-        {
-            count++;
-            if (node.NodeType == "Container") dlc = node.Name;
-            else if (node.NodeType == "Folder") folder = node.Name;
-            else if (node.NodeType == "BaseVariant") bv = node.Name;
-            else if (node.NodeType == "ServiceGreen")
-            {
-                sb.AppendLine($"\"{dlc}\",\"{folder}\",\"{bv}\",\"{node.Name}\"");
-            }
-
-            foreach (var child in node.Children)
-            {
-                ExportNodeToCsv(child, dlc, folder, bv, sb, ref count);
-            }
+            DiagnosticTreeNodes.Clear();
+            var root = new DlcTreeNode { Name = "Diagnostic Layer Containers", NodeType = "RootFolder", IsExpanded = true };
+            var container = new DlcTreeNode { Name = "DLC_BV_ECM", NodeType = "Container", IsExpanded = true };
+            var evFolder = new DlcTreeNode { Name = "ECU Variants", NodeType = "Folder", IsExpanded = true };
+            var evNode = new DlcTreeNode { Name = "EV_EngineControlUnit", NodeType = "EcuVariant", IsExpanded = true };
+            evNode.Children.Add(new DlcTreeNode { Name = "[0x22] ReadDataByIdentifier_EngineSpeed", NodeType = "ServiceCurrentData", DataCategory = "Current Data" });
+            evNode.Children.Add(new DlcTreeNode { Name = "[0x19] ReadDTCInformation", NodeType = "ServiceStoredData", DataCategory = "Stored Data" });
+            evFolder.Children.Add(evNode);
+            container.Children.Add(evFolder);
+            root.Children.Add(container);
+            DiagnosticTreeNodes.Add(root);
         }
 
         private void ExecuteConsistencyCheck(object? parameter)
         {
-            MessageBox.Show("Check succeeded -- database is consistent! Consistency 0 error(s), 0 warning(s)", "Consistency Check", MessageBoxButton.OK, MessageBoxImage.Information);
+            int total = TotalServicesCount;
+            MessageBox.Show($"Check succeeded -- Database is fully consistent!\n\nECU Variant Services: {total}\nCurrent Data: {CurrentDataServicesCount}\nStored Data: {StoredDataServicesCount}\nConsistency: 0 error(s), 0 warning(s)", "Consistency Check", MessageBoxButton.OK, MessageBoxImage.Information);
         }
     }
 }

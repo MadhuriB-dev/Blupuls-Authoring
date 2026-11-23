@@ -6,7 +6,7 @@
         xmlns:vm="clr-namespace:Bluepuls_Authoring_Tool.ViewModels"
         xmlns:views="clr-namespace:Bluepuls_Authoring_Tool.Views"
         mc:Ignorable="d"
-        Title="Softing Diagnostic Tool Set - [Bluepuls Authoring Tool]" Height="850" Width="1350"
+        Title="Softing Diagnostic Tool Set - [Bluepuls Authoring Tool]" Height="880" Width="1400"
         WindowStartupLocation="CenterScreen">
 
     <Window.DataContext>
@@ -14,22 +14,39 @@
     </Window.DataContext>
 
     <Window.Resources>
+        <!-- Node Type Converters for TreeView Icons -->
         <views:NodeTypeVisibilityConverter x:Key="RootFolderConverter" TargetType="RootFolder"/>
         <views:NodeTypeVisibilityConverter x:Key="ContainerConverter" TargetType="Container"/>
         <views:NodeTypeVisibilityConverter x:Key="FolderConverter" TargetType="Folder"/>
         <views:NodeTypeVisibilityConverter x:Key="BaseVariantConverter" TargetType="BaseVariant"/>
+        <views:NodeTypeVisibilityConverter x:Key="EcuVariantConverter" TargetType="EcuVariant"/>
         <views:NodeTypeVisibilityConverter x:Key="ServiceGreenConverter" TargetType="ServiceGreen"/>
+        <views:NodeTypeVisibilityConverter x:Key="ServiceCurrentDataConverter" TargetType="ServiceCurrentData"/>
+        <views:NodeTypeVisibilityConverter x:Key="ServiceStoredDataConverter" TargetType="ServiceStoredData"/>
+        <views:NodeTypeVisibilityConverter x:Key="ServiceControlConverter" TargetType="ServiceControl"/>
+        <views:NodeTypeVisibilityConverter x:Key="DidNodeConverter" TargetType="DidNode"/>
+        <views:NodeTypeVisibilityConverter x:Key="DtcNodeConverter" TargetType="DtcNode"/>
+
+        <!-- Modern DataGrid Header Style -->
+        <Style x:Key="ModernDataGridHeaderStyle" TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="#1B365D"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontFamily" Value="Tahoma"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="BorderBrush" Value="#2A4B7C"/>
+            <Setter Property="BorderThickness" Value="0,0,1,1"/>
+        </Style>
     </Window.Resources>
 
     <DockPanel Background="#ECE9D8">
-        <!-- Main Classic Menu Bar with Import & Export Enabled -->
+        <!-- Main Classic Menu Bar -->
         <Menu DockPanel.Dock="Top" Background="#ECE9D8" Padding="1" FontFamily="Tahoma" FontSize="11">
             <MenuItem Header="_File">
-                <MenuItem Header="_New"/>
-                <MenuItem Header="_Open..." Command="{Binding ImportCommand}"/>
-                <Separator/>
-                <MenuItem Header="_Import ODX / XML / CSV..." Command="{Binding ImportCommand}"/>
-                <MenuItem Header="_Export ODX / XML / CSV..." Command="{Binding ExportCommand}"/>
+                <MenuItem Header="_Open / Load PDX Archive..." Command="{Binding LoadPdxCommand}"/>
+                <MenuItem Header="_Import Diagnostic File (ODX / XML / CSV)..." Command="{Binding ImportCommand}"/>
+                <MenuItem Header="_Export Report (Excel XLSX / ODX-D / CSV)..." Command="{Binding ExportCommand}"/>
                 <Separator/>
                 <MenuItem Header="_Save" Command="{Binding ExportCommand}"/>
                 <Separator/>
@@ -42,126 +59,430 @@
                 <MenuItem Header="_Consistency Check" Command="{Binding ConsistencyCheckCommand}"/>
             </MenuItem>
             <MenuItem Header="_Tools">
-                <MenuItem Header="_Import Database..." Command="{Binding ImportCommand}"/>
-                <MenuItem Header="_Export Database..." Command="{Binding ExportCommand}"/>
+                <MenuItem Header="_Load Sample PDX..." Command="{Binding LoadPdxCommand}"/>
+                <MenuItem Header="_Export to Excel..." Command="{Binding ExportCommand}"/>
             </MenuItem>
             <MenuItem Header="_Window"/>
             <MenuItem Header="_Help"/>
         </Menu>
 
-        <!-- Toolbar Tray with Enabled Import & Export Buttons -->
+        <!-- Toolbar Tray -->
         <Border DockPanel.Dock="Top" Background="#ECE9D8" BorderBrush="#999999" BorderThickness="0,1,0,1" Padding="2">
             <StackPanel Orientation="Horizontal">
-                <Button Width="22" Height="22" Margin="1" ToolTip="New">
-                    <Path Data="M3,3 L13,3 L13,17 L3,17 Z" Stroke="#444" Fill="White" StrokeThickness="1"/>
+                <!-- Open PDX Button -->
+                <Button Height="24" Padding="6,0" Margin="1" ToolTip="Load / Parse PDX Diagnostic Package" Command="{Binding LoadPdxCommand}">
+                    <StackPanel Orientation="Horizontal">
+                        <Path Data="M2,4 L8,4 L10,6 L18,6 L18,16 L2,16 Z" Fill="#007ACC" Stroke="#005A9E" StrokeThickness="1" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                        <TextBlock Text="Load PDX" FontFamily="Tahoma" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
+                    </StackPanel>
                 </Button>
-                <Button Width="22" Height="22" Margin="1" ToolTip="Open / Import Database" Command="{Binding ImportCommand}">
-                    <Path Data="M2,6 L7,6 L9,8 L18,8 L18,16 L2,16 Z" Fill="#E6B800" Stroke="#A67C00" StrokeThickness="1"/>
-                </Button>
-                <Button Width="22" Height="22" Margin="1" ToolTip="Save / Export Database" Command="{Binding ExportCommand}">
-                    <Path Data="M3,3 L15,3 L17,5 L17,17 L3,17 Z M5,3 L5,8 L13,8 L13,3" Fill="#3366CC" Stroke="#1A3366" StrokeThickness="1"/>
-                </Button>
-                <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="4,2"/>
 
-                <!-- Explicit Import Button -->
-                <Button Height="22" Padding="6,0" Margin="1" ToolTip="Import ODX / XML / CSV File" Command="{Binding ImportCommand}">
+                <!-- Import Button -->
+                <Button Height="24" Padding="6,0" Margin="1" ToolTip="Import ODX / XML / CSV File" Command="{Binding ImportCommand}">
                     <StackPanel Orientation="Horizontal">
                         <Path Data="M7,1 L7,10 M4,7 L7,10 L10,7 M2,13 L12,13" Stroke="#0066CC" StrokeThickness="1.6" VerticalAlignment="Center" Margin="0,0,4,0"/>
                         <TextBlock Text="Import" FontFamily="Tahoma" FontSize="11" VerticalAlignment="Center"/>
                     </StackPanel>
                 </Button>
 
-                <!-- Explicit Export Button -->
-                <Button Height="22" Padding="6,0" Margin="1" ToolTip="Export ODX / XML / CSV File" Command="{Binding ExportCommand}">
+                <!-- Export Button -->
+                <Button Height="24" Padding="6,0" Margin="1" ToolTip="Export to Excel (.xlsx) / ODX-D / CSV" Command="{Binding ExportCommand}">
                     <StackPanel Orientation="Horizontal">
                         <Path Data="M7,10 L7,1 M4,4 L7,1 L10,4 M2,13 L12,13" Stroke="#008A3E" StrokeThickness="1.6" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                        <TextBlock Text="Export" FontFamily="Tahoma" FontSize="11" VerticalAlignment="Center"/>
+                        <TextBlock Text="Export (Excel)" FontFamily="Tahoma" FontSize="11" VerticalAlignment="Center"/>
                     </StackPanel>
                 </Button>
 
                 <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="4,2"/>
-                <Button Width="22" Height="22" Margin="1" ToolTip="Find">
-                    <Ellipse Width="10" Height="10" Stroke="#333" StrokeThickness="2" Margin="0,0,4,4"/>
-                </Button>
-                <Button Width="22" Height="22" Margin="1" ToolTip="Execute Service">
-                    <Path Data="M4,2 L14,9 L4,16 Z" Fill="#28A745" Stroke="#1E7E34"/>
-                </Button>
-                <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="4,2"/>
-                <Button Width="22" Height="22" Margin="1" ToolTip="Consistency Check" Command="{Binding ConsistencyCheckCommand}">
-                    <Path Data="M3,10 L7,14 L15,4" Stroke="#DC3545" StrokeThickness="2.5"/>
+
+                <!-- Consistency Check Button -->
+                <Button Height="24" Padding="6,0" Margin="1" ToolTip="Run Consistency Check on Diagnostic Data" Command="{Binding ConsistencyCheckCommand}">
+                    <StackPanel Orientation="Horizontal">
+                        <Path Data="M3,9 L7,13 L15,3" Stroke="#28A745" StrokeThickness="2.2" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                        <TextBlock Text="Check" FontFamily="Tahoma" FontSize="11" VerticalAlignment="Center"/>
+                    </StackPanel>
                 </Button>
 
+                <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="6,2"/>
+
                 <!-- ODX Selection Dropdown -->
-                <TextBlock Text=" ODX: " VerticalAlignment="Center" FontFamily="Tahoma" FontSize="11" FontWeight="Bold"/>
-                <ComboBox ItemsSource="{Binding OdxProjects}" SelectedItem="{Binding SelectedOdxProject, Mode=TwoWay}" Width="170" Height="21" FontFamily="Tahoma" FontSize="11"/>
+                <TextBlock Text=" Package / ODX: " VerticalAlignment="Center" FontFamily="Tahoma" FontSize="11" FontWeight="Bold"/>
+                <ComboBox ItemsSource="{Binding OdxProjects}" SelectedItem="{Binding SelectedOdxProject, Mode=TwoWay}" Width="190" Height="22" FontFamily="Tahoma" FontSize="11"/>
 
                 <!-- ECU Selection Dropdown -->
                 <TextBlock Text=" ECU: " VerticalAlignment="Center" FontFamily="Tahoma" FontSize="11" FontWeight="Bold" Margin="6,0,0,0"/>
-                <ComboBox ItemsSource="{Binding EcuList}" SelectedItem="{Binding SelectedEcu, Mode=TwoWay}" Width="120" Height="21" FontFamily="Tahoma" FontSize="11"/>
+                <ComboBox ItemsSource="{Binding EcuList}" SelectedItem="{Binding SelectedEcu, Mode=TwoWay}" Width="160" Height="22" FontFamily="Tahoma" FontSize="11"/>
             </StackPanel>
         </Border>
 
-        <!-- Main Workspace Area (Bottom tab strip removed as requested) -->
+        <!-- Main Workspace Area -->
         <Grid Margin="2">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="320"/>
-                <ColumnDefinition Width="4"/>
-                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="380" MinWidth="260"/>
+                <ColumnDefinition Width="5"/>
+                <ColumnDefinition Width="*" MinWidth="500"/>
             </Grid.ColumnDefinitions>
 
-            <!-- LEFT PANEL: Diagnostic Layer Containers TreeView -->
+            <!-- LEFT PANEL: Diagnostic Layer Containers (DLC) TreeView -->
             <Border Grid.Column="0" Background="White" BorderBrush="#999999" BorderThickness="1">
-                <TreeView ItemsSource="{Binding DiagnosticTreeNodes}" BorderThickness="0" Padding="2" FontFamily="Tahoma" FontSize="11">
-                    <TreeView.ItemContainerStyle>
-                        <Style TargetType="TreeViewItem">
-                            <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
-                            <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
-                        </Style>
-                    </TreeView.ItemContainerStyle>
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Background="#E2E7ED" BorderBrush="#CCCCCC" BorderThickness="0,0,0,1" Padding="6,4">
+                        <TextBlock Text="DIAGNOSTIC LAYER CONTAINERS" FontFamily="Tahoma" FontSize="10" FontWeight="Bold" Foreground="#333333"/>
+                    </Border>
 
-                    <TreeView.ItemTemplate>
-                        <HierarchicalDataTemplate ItemsSource="{Binding Children}">
-                            <StackPanel Orientation="Horizontal" Margin="1,1">
-                                <!-- 1. Root Folder Icon -->
-                                <Grid Visibility="{Binding NodeType, Converter={StaticResource RootFolderConverter}}" Margin="0,0,4,0">
-                                    <Path Data="M1,2 L5,2 L7,4 L13,4 L13,11 L1,11 Z" Fill="#E6C200" Stroke="#A68A00" StrokeThickness="0.8" Width="13" Height="11"/>
-                                </Grid>
+                    <TreeView ItemsSource="{Binding DiagnosticTreeNodes}" 
+                              SelectedItemChanged="TreeView_SelectedItemChanged"
+                              BorderThickness="0" Padding="3" FontFamily="Tahoma" FontSize="11">
+                        <TreeView.ItemContainerStyle>
+                            <Style TargetType="TreeViewItem">
+                                <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+                                <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
+                                <Setter Property="Padding" Value="1,2"/>
+                            </Style>
+                        </TreeView.ItemContainerStyle>
 
-                                <!-- 2. Container Icon -->
-                                <Canvas Visibility="{Binding NodeType, Converter={StaticResource ContainerConverter}}" Margin="0,0,4,0" Width="14" Height="14">
-                                    <Rectangle Canvas.Left="0" Canvas.Top="0" Width="10" Height="8" Fill="#00A859" Stroke="#005A30" StrokeThickness="0.8"/>
-                                    <Rectangle Canvas.Left="3" Canvas.Top="4" Width="10" Height="8" Fill="#00C86E" Stroke="#005A30" StrokeThickness="0.8"/>
-                                </Canvas>
+                        <TreeView.ItemTemplate>
+                            <HierarchicalDataTemplate ItemsSource="{Binding Children}">
+                                <StackPanel Orientation="Horizontal" Margin="1,1">
+                                    <!-- 1. Root Folder Icon -->
+                                    <Grid Visibility="{Binding NodeType, Converter={StaticResource RootFolderConverter}}" Margin="0,0,4,0">
+                                        <Path Data="M1,2 L5,2 L7,4 L13,4 L13,11 L1,11 Z" Fill="#E6C200" Stroke="#A68A00" StrokeThickness="0.8" Width="13" Height="11"/>
+                                    </Grid>
 
-                                <!-- 3. Sub-Folder Icon -->
-                                <Grid Visibility="{Binding NodeType, Converter={StaticResource FolderConverter}}" Margin="0,0,4,0">
-                                    <Path Data="M1,2 L5,2 L7,4 L13,4 L13,11 L1,11 Z" Fill="#E6C200" Stroke="#A68A00" StrokeThickness="0.8" Width="13" Height="11"/>
-                                </Grid>
+                                    <!-- 2. Container Icon (DLC) -->
+                                    <Canvas Visibility="{Binding NodeType, Converter={StaticResource ContainerConverter}}" Margin="0,0,4,0" Width="14" Height="14">
+                                        <Rectangle Canvas.Left="0" Canvas.Top="0" Width="10" Height="8" Fill="#00A859" Stroke="#005A30" StrokeThickness="0.8"/>
+                                        <Rectangle Canvas.Left="3" Canvas.Top="4" Width="10" Height="8" Fill="#00C86E" Stroke="#005A30" StrokeThickness="0.8"/>
+                                    </Canvas>
 
-                                <!-- 4. ECU BaseVariant Icon (Red Circle with Yellow 'E') -->
-                                <Grid Visibility="{Binding NodeType, Converter={StaticResource BaseVariantConverter}}" Margin="0,0,4,0" Width="14" Height="14">
-                                    <Ellipse Width="14" Height="14" Fill="#FF0000" Stroke="#A00000" StrokeThickness="0.8"/>
-                                    <TextBlock Text="E" Foreground="#FFFF00" FontWeight="Bold" FontSize="10" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-1,0,0"/>
-                                </Grid>
+                                    <!-- 3. Sub-Folder Icon -->
+                                    <Grid Visibility="{Binding NodeType, Converter={StaticResource FolderConverter}}" Margin="0,0,4,0">
+                                        <Path Data="M1,2 L5,2 L7,4 L13,4 L13,11 L1,11 Z" Fill="#E6C200" Stroke="#A68A00" StrokeThickness="0.8" Width="13" Height="11"/>
+                                    </Grid>
 
-                                <!-- 5. Green Service Up-Arrow Icon -->
-                                <Grid Visibility="{Binding NodeType, Converter={StaticResource ServiceGreenConverter}}" Margin="0,0,4,0" Width="12" Height="12">
-                                    <Path Data="M2,10 L10,2 M4,2 L10,2 L10,8" Stroke="#00A859" StrokeThickness="2"/>
-                                </Grid>
+                                    <!-- 4. ECU BaseVariant Icon (Red Circle with Yellow 'E') -->
+                                    <Grid Visibility="{Binding NodeType, Converter={StaticResource BaseVariantConverter}}" Margin="0,0,4,0" Width="14" Height="14">
+                                        <Ellipse Width="14" Height="14" Fill="#D92525" Stroke="#901515" StrokeThickness="0.8"/>
+                                        <TextBlock Text="E" Foreground="#FFFF00" FontWeight="Bold" FontSize="10" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-1,0,0"/>
+                                    </Grid>
 
-                                <!-- Node Text Label -->
-                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" FontFamily="Tahoma" FontSize="11"/>
-                            </StackPanel>
-                        </HierarchicalDataTemplate>
-                    </TreeView.ItemTemplate>
-                </TreeView>
+                                    <!-- 5. ECU Variant Icon (Blue Circle with White 'V') -->
+                                    <Grid Visibility="{Binding NodeType, Converter={StaticResource EcuVariantConverter}}" Margin="0,0,4,0" Width="14" Height="14">
+                                        <Ellipse Width="14" Height="14" Fill="#0066CC" Stroke="#004488" StrokeThickness="0.8"/>
+                                        <TextBlock Text="V" Foreground="White" FontWeight="Bold" FontSize="9" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-1,0,0"/>
+                                    </Grid>
+
+                                    <!-- 6. Current Data Service (Green Telemetry Arrow) -->
+                                    <Grid Visibility="{Binding NodeType, Converter={StaticResource ServiceCurrentDataConverter}}" Margin="0,0,4,0" Width="13" Height="13">
+                                        <Path Data="M2,10 L10,2 M4,2 L10,2 L10,8" Stroke="#00A859" StrokeThickness="2"/>
+                                        <Ellipse Canvas.Left="1" Canvas.Top="9" Width="3" Height="3" Fill="#00A859"/>
+                                    </Grid>
+
+                                    <!-- 7. Stored Data Service (Amber / Gold Database Arrow) -->
+                                    <Grid Visibility="{Binding NodeType, Converter={StaticResource ServiceStoredDataConverter}}" Margin="0,0,4,0" Width="13" Height="13">
+                                        <Path Data="M2,6 L10,6 M7,2 L11,6 L7,10" Stroke="#D9822B" StrokeThickness="2"/>
+                                    </Grid>
+
+                                    <!-- 8. Control Service (Purple Gear / Diamond) -->
+                                    <Grid Visibility="{Binding NodeType, Converter={StaticResource ServiceControlConverter}}" Margin="0,0,4,0" Width="13" Height="13">
+                                        <Path Data="M6,1 L11,6 L6,11 L1,6 Z" Fill="#8A2BE2" Stroke="#5A189A" StrokeThickness="1"/>
+                                    </Grid>
+
+                                    <!-- 9. DID Node Icon (Cyan Tag) -->
+                                    <Grid Visibility="{Binding NodeType, Converter={StaticResource DidNodeConverter}}" Margin="0,0,4,0" Width="12" Height="12">
+                                        <Path Data="M2,2 L7,2 L11,6 L7,10 L2,10 Z" Fill="#00B4D8" Stroke="#0077B6" StrokeThickness="0.8"/>
+                                    </Grid>
+
+                                    <!-- 10. DTC Node Icon (Warning Triangle) -->
+                                    <Grid Visibility="{Binding NodeType, Converter={StaticResource DtcNodeConverter}}" Margin="0,0,4,0" Width="12" Height="12">
+                                        <Path Data="M6,1 L11,10 L1,10 Z" Fill="#FFB703" Stroke="#D97706" StrokeThickness="1"/>
+                                    </Grid>
+
+                                    <!-- 11. Generic Green Service Icon -->
+                                    <Grid Visibility="{Binding NodeType, Converter={StaticResource ServiceGreenConverter}}" Margin="0,0,4,0" Width="12" Height="12">
+                                        <Path Data="M2,10 L10,2 M4,2 L10,2 L10,8" Stroke="#00A859" StrokeThickness="2"/>
+                                    </Grid>
+
+                                    <!-- Node Name -->
+                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center" FontFamily="Tahoma" FontSize="11"/>
+                                </StackPanel>
+                            </HierarchicalDataTemplate>
+                        </TreeView.ItemTemplate>
+                    </TreeView>
+                </DockPanel>
             </Border>
 
-            <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch" Background="#ECE9D8"/>
+            <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" Background="#ECE9D8"/>
 
-            <!-- RIGHT PANEL: Empty Page -->
-            <Border Grid.Column="2" Background="#ECE9D8" BorderBrush="#999999" BorderThickness="1">
-                <!-- Empty right workspace page -->
+            <!-- RIGHT PANEL: Diagnostic Workspace Inspector -->
+            <Border Grid.Column="2" Background="White" BorderBrush="#999999" BorderThickness="1">
+                <DockPanel>
+                    <!-- Header Banner -->
+                    <Border DockPanel.Dock="Top" Background="#1B365D" Padding="10,8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="{Binding ActiveWorkspaceTitle}" Foreground="White" FontFamily="Tahoma" FontSize="13" FontWeight="Bold"/>
+                                <TextBlock Text="Extracted from ODX-D / PDX via OdxDiagnosticParser Engine" Foreground="#A9CCE3" FontFamily="Tahoma" FontSize="10" Margin="0,2,0,0"/>
+                            </StackPanel>
+
+                            <!-- Badge Metrics -->
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Border Background="#0E6655" CornerRadius="3" Padding="6,2" Margin="2,0">
+                                    <TextBlock Text="{Binding CurrentDataServicesCount, StringFormat='Current Data: {0}'}" Foreground="White" FontSize="10" FontWeight="Bold"/>
+                                </Border>
+                                <Border Background="#B7950B" CornerRadius="3" Padding="6,2" Margin="2,0">
+                                    <TextBlock Text="{Binding StoredDataServicesCount, StringFormat='Stored Data: {0}'}" Foreground="White" FontSize="10" FontWeight="Bold"/>
+                                </Border>
+                                <Border Background="#2C3E50" CornerRadius="3" Padding="6,2" Margin="2,0">
+                                    <TextBlock Text="{Binding TotalServicesCount, StringFormat='Total Services: {0}'}" Foreground="White" FontSize="10" FontWeight="Bold"/>
+                                </Border>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- Workspace Tabs -->
+                    <TabControl BorderThickness="0,1,0,0" BorderBrush="#999999" FontFamily="Tahoma" FontSize="11">
+                        <!-- TAB 1: DIAGNOSTIC SERVICES (ODX-D) -->
+                        <TabItem Header="Diagnostic Services (ODX-D)">
+                            <DataGrid ItemsSource="{Binding LayerServices}" 
+                                      AutoGenerateColumns="False" 
+                                      IsReadOnly="True" 
+                                      CanUserAddRows="False"
+                                      GridLinesVisibility="All" 
+                                      HorizontalGridLinesBrush="#E0E0E0" 
+                                      VerticalGridLinesBrush="#E0E0E0"
+                                      ColumnHeaderStyle="{StaticResource ModernDataGridHeaderStyle}"
+                                      RowHeight="24"
+                                      FontFamily="Tahoma" 
+                                      FontSize="11">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Category" Binding="{Binding DataCategory}" Width="110"/>
+                                    <DataGridTextColumn Header="SID" Binding="{Binding ServiceIdHex}" Width="70">
+                                        <DataGridTextColumn.ElementStyle>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="HorizontalAlignment" Value="Center"/>
+                                                <Setter Property="FontWeight" Value="Bold"/>
+                                            </Style>
+                                        </DataGridTextColumn.ElementStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTextColumn Header="Service Name" Binding="{Binding ShortName}" Width="260"/>
+                                    <DataGridTextColumn Header="Semantic" Binding="{Binding Semantic}" Width="130"/>
+                                    <DataGridTextColumn Header="Sub-Func" Binding="{Binding SubFunctionHex}" Width="80">
+                                        <DataGridTextColumn.ElementStyle>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="HorizontalAlignment" Value="Center"/>
+                                            </Style>
+                                        </DataGridTextColumn.ElementStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTextColumn Header="Pos Resp SID" Binding="{Binding PositiveResponseSidHex}" Width="90">
+                                        <DataGridTextColumn.ElementStyle>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="HorizontalAlignment" Value="Center"/>
+                                            </Style>
+                                        </DataGridTextColumn.ElementStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTextColumn Header="Req Params" Binding="{Binding RequestParameters.Count}" Width="80">
+                                        <DataGridTextColumn.ElementStyle>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="HorizontalAlignment" Value="Right"/>
+                                            </Style>
+                                        </DataGridTextColumn.ElementStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </TabItem>
+
+                        <!-- TAB 2: SERVICE INSPECTOR (PARAMETERS & NRCS) -->
+                        <TabItem Header="Service Inspector">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <StackPanel Margin="12">
+                                    <TextBlock Text="SELECTED SERVICE SPECIFICATION" FontWeight="Bold" FontSize="12" Foreground="#1B365D" Margin="0,0,0,6"/>
+                                    
+                                    <Border Background="#F4F6F9" BorderBrush="#D5D8DC" BorderThickness="1" Padding="10" Margin="0,0,0,12">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="130"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="130"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="24"/>
+                                                <RowDefinition Height="24"/>
+                                                <RowDefinition Height="24"/>
+                                            </Grid.RowDefinitions>
+
+                                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Service Name:" FontWeight="Bold"/>
+                                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SelectedService.ShortName}"/>
+
+                                            <TextBlock Grid.Row="0" Grid.Column="2" Text="Service ID (SID):" FontWeight="Bold"/>
+                                            <TextBlock Grid.Row="0" Grid.Column="3" Text="{Binding SelectedService.ServiceIdHex}"/>
+
+                                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Data Category:" FontWeight="Bold"/>
+                                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SelectedService.DataCategory}" FontWeight="Bold"/>
+
+                                            <TextBlock Grid.Row="1" Grid.Column="2" Text="Semantic:" FontWeight="Bold"/>
+                                            <TextBlock Grid.Row="1" Grid.Column="3" Text="{Binding SelectedService.Semantic}"/>
+
+                                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Sub-Function:" FontWeight="Bold"/>
+                                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SelectedService.SubFunctionHex}"/>
+
+                                            <TextBlock Grid.Row="2" Grid.Column="2" Text="Pos Response SID:" FontWeight="Bold"/>
+                                            <TextBlock Grid.Row="2" Grid.Column="3" Text="{Binding SelectedService.PositiveResponseSidHex}"/>
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- Request Parameters -->
+                                    <TextBlock Text="Request Parameters Structure" FontWeight="Bold" Foreground="#1B365D" Margin="0,6,0,4"/>
+                                    <DataGrid ItemsSource="{Binding SelectedService.RequestParameters}" 
+                                              AutoGenerateColumns="False" 
+                                              IsReadOnly="True" 
+                                              MaxHeight="180"
+                                              ColumnHeaderStyle="{StaticResource ModernDataGridHeaderStyle}">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="Byte Pos" Binding="{Binding BytePosition}" Width="70"/>
+                                            <DataGridTextColumn Header="Parameter Name" Binding="{Binding Name}" Width="200"/>
+                                            <DataGridTextColumn Header="Semantic" Binding="{Binding Semantic}" Width="120"/>
+                                            <DataGridTextColumn Header="Type" Binding="{Binding ParameterType}" Width="120"/>
+                                            <DataGridTextColumn Header="Default Hex" Binding="{Binding DefaultValueHex}" Width="100"/>
+                                            <DataGridTextColumn Header="DOP Ref" Binding="{Binding DopRef}" Width="*"/>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+
+                                    <!-- Positive Response Parameters -->
+                                    <TextBlock Text="Positive Response Parameters Structure" FontWeight="Bold" Foreground="#1B365D" Margin="0,12,0,4"/>
+                                    <DataGrid ItemsSource="{Binding SelectedService.ResponseParameters}" 
+                                              AutoGenerateColumns="False" 
+                                              IsReadOnly="True" 
+                                              MaxHeight="180"
+                                              ColumnHeaderStyle="{StaticResource ModernDataGridHeaderStyle}">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="Byte Pos" Binding="{Binding BytePosition}" Width="70"/>
+                                            <DataGridTextColumn Header="Parameter Name" Binding="{Binding Name}" Width="200"/>
+                                            <DataGridTextColumn Header="Semantic" Binding="{Binding Semantic}" Width="120"/>
+                                            <DataGridTextColumn Header="Bit Length" Binding="{Binding BitLength}" Width="80"/>
+                                            <DataGridTextColumn Header="Type" Binding="{Binding ParameterType}" Width="120"/>
+                                            <DataGridTextColumn Header="DOP Ref" Binding="{Binding DopRef}" Width="*"/>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+
+                        <!-- TAB 3: DATA IDENTIFIERS (DIDS) -->
+                        <TabItem Header="Data Identifiers (DIDs)">
+                            <DataGrid ItemsSource="{Binding LayerDids}" 
+                                      AutoGenerateColumns="False" 
+                                      IsReadOnly="True" 
+                                      CanUserAddRows="False"
+                                      ColumnHeaderStyle="{StaticResource ModernDataGridHeaderStyle}"
+                                      RowHeight="24">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Category" Binding="{Binding DataCategory}" Width="100"/>
+                                    <DataGridTextColumn Header="DID (Hex)" Binding="{Binding DidHex}" Width="80">
+                                        <DataGridTextColumn.ElementStyle>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="HorizontalAlignment" Value="Center"/>
+                                                <Setter Property="FontWeight" Value="Bold"/>
+                                            </Style>
+                                        </DataGridTextColumn.ElementStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTextColumn Header="DID (Dec)" Binding="{Binding DidDecimal}" Width="80"/>
+                                    <DataGridTextColumn Header="DID Name" Binding="{Binding ShortName}" Width="220"/>
+                                    <DataGridTextColumn Header="Access" Binding="{Binding Access}" Width="90"/>
+                                    <DataGridTextColumn Header="Len (B)" Binding="{Binding ByteLength}" Width="70"/>
+                                    <DataGridTextColumn Header="Data Type" Binding="{Binding DataType}" Width="120"/>
+                                    <DataGridTextColumn Header="Unit" Binding="{Binding Unit}" Width="70"/>
+                                    <DataGridTextColumn Header="Factor" Binding="{Binding ScalingFactor}" Width="70"/>
+                                    <DataGridTextColumn Header="Offset" Binding="{Binding Offset}" Width="70"/>
+                                    <DataGridTextColumn Header="Associated Service" Binding="{Binding AssociatedService}" Width="*"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </TabItem>
+
+                        <!-- TAB 4: TROUBLE CODES (DTCS) -->
+                        <TabItem Header="Trouble Codes (DTCs)">
+                            <DataGrid ItemsSource="{Binding LayerDtcs}" 
+                                      AutoGenerateColumns="False" 
+                                      IsReadOnly="True" 
+                                      CanUserAddRows="False"
+                                      ColumnHeaderStyle="{StaticResource ModernDataGridHeaderStyle}"
+                                      RowHeight="24">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Display Code" Binding="{Binding DisplayCode}" Width="110">
+                                        <DataGridTextColumn.ElementStyle>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="FontWeight" Value="Bold"/>
+                                                <Setter Property="Foreground" Value="#C0392B"/>
+                                            </Style>
+                                        </DataGridTextColumn.ElementStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTextColumn Header="Hex Code" Binding="{Binding TroubleCodeHex}" Width="100"/>
+                                    <DataGridTextColumn Header="FTB" Binding="{Binding FailureTypeByte}" Width="70"/>
+                                    <DataGridTextColumn Header="Severity" Binding="{Binding Severity}" Width="90"/>
+                                    <DataGridTextColumn Header="Fault Description" Binding="{Binding Description}" Width="*"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </TabItem>
+
+                        <!-- TAB 5: PROTOCOLS & BUS TIMINGS -->
+                        <TabItem Header="Protocols &amp; Timings">
+                            <DataGrid ItemsSource="{Binding LayerComParams}" 
+                                      AutoGenerateColumns="False" 
+                                      IsReadOnly="True" 
+                                      CanUserAddRows="False"
+                                      ColumnHeaderStyle="{StaticResource ModernDataGridHeaderStyle}"
+                                      RowHeight="24">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Parameter Name" Binding="{Binding Name}" Width="240"/>
+                                    <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="150"/>
+                                    <DataGridTextColumn Header="Unit" Binding="{Binding Unit}" Width="90"/>
+                                    <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </TabItem>
+
+                        <!-- TAB 6: PACKAGE METADATA -->
+                        <TabItem Header="Package Metadata">
+                            <DataGrid ItemsSource="{Binding PackageMetadata}" 
+                                      AutoGenerateColumns="False" 
+                                      IsReadOnly="True" 
+                                      CanUserAddRows="False"
+                                      ColumnHeaderStyle="{StaticResource ModernDataGridHeaderStyle}"
+                                      RowHeight="24">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Property" Binding="{Binding Key}" Width="220" FontWeight="Bold"/>
+                                    <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="*"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </TabItem>
+
+                        <!-- TAB 7: COMMUNICATION LOGS (RX/TX) -->
+                        <TabItem Header="Communication Logs">
+                            <DataGrid ItemsSource="{Binding CommunicationLogs}" 
+                                      AutoGenerateColumns="False" 
+                                      IsReadOnly="True" 
+                                      CanUserAddRows="False"
+                                      ColumnHeaderStyle="{StaticResource ModernDataGridHeaderStyle}"
+                                      RowHeight="22">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Time" Binding="{Binding Timestamp, StringFormat='HH:mm:ss.fff'}" Width="90"/>
+                                    <DataGridTextColumn Header="Dir" Binding="{Binding Direction}" Width="50"/>
+                                    <DataGridTextColumn Header="Service ID" Binding="{Binding ServiceId}" Width="80"/>
+                                    <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="280"/>
+                                    <DataGridTextColumn Header="Raw Data" Binding="{Binding RawData}" Width="120"/>
+                                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="80"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </TabItem>
+                    </TabControl>
+                </DockPanel>
             </Border>
         </Grid>
     </DockPanel>
