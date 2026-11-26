@@ -68,7 +68,7 @@ internal class Program
             Console.ResetColor();
             Console.WriteLine("  2. Test a PDX Package (.pdx) -> Extract Diagnostic Data & Export Permanent Excel");
             Console.WriteLine("  3. Test a single ODX XML file (.odx / .odx-d / .xml) -> Export to Excel");
-            Console.WriteLine("  4. Run Complete Automated Test Suite (14 unit tests covering all parser parts)");
+            Console.WriteLine("  4. Run Complete Automated Test Suite (17 unit tests covering all ISO 22901 parser parts)");
             Console.WriteLine("  5. Test Specific Parser Part (Services, DIDs, DTCs, Sessions, PDX Zip-Slip, Excel)");
             Console.WriteLine("  6. Run Built-in End-to-End Demo (Creates sample PDX/ODX, extracts, and exports)");
             Console.WriteLine("  7. Exit");
@@ -318,7 +318,7 @@ internal class Program
     }
 
     /// <summary>
-    /// Core testing function: Unpacks PDX, parses all diagnostic data, prints full console report, and exports to Excel.
+    /// Core testing function: Unpacks PDX, parses all diagnostic data, prints full console report, and exports to Excel.v
     /// </summary>
     public static int TestAndExportPdx(string pdxFilePath, string? outputExcelPath = null)
     {
@@ -381,13 +381,47 @@ internal class Program
                 Console.WriteLine($"  Vehicle Models:     {string.Join(", ", package.Catalog.Vehicles.Select(v => $"{v.Model} ({v.Company})"))}");
             if (package.Catalog.Ecus.Count > 0)
                 Console.WriteLine($"  ECU Info:           {string.Join(", ", package.Catalog.Ecus.Select(e => $"{e.EcuName} [DiagAddr: {e.DiagnosticAddress}]"))}");
-            if (package.Catalog.Files.Count > 0)
+            if (package.Catalog.Ablocks.Count > 0)
+            {
+                Console.WriteLine($"  ISO 22901-2 ABLOCKs ({package.Catalog.Ablocks.Count}):");
+                foreach (var ab in package.Catalog.Ablocks)
+                {
+                    Console.WriteLine($"    - [{ab.Category}] {ab.ShortName} -> {ab.PrimaryFilePath}");
+                }
+            }
+            else if (package.Catalog.Files.Count > 0)
             {
                 Console.WriteLine($"  Packaged Files ({package.Catalog.Files.Count}):");
                 foreach (var f in package.Catalog.Files)
                 {
                     Console.WriteLine($"    - [{f.FileType}] {f.ShortName} ({f.RelativePath}, {f.FileSizeBytes} bytes)");
                 }
+            }
+        }
+
+        if (package.VehicleInfos.Count > 0)
+        {
+            Console.ForegroundColor = ConsoleColor.Magenta;
+            Console.WriteLine($"\n--- ISO 22901-1 VEHICLE TOPOLOGY & LOGICAL LINKS (ODX-V) ---");
+            Console.ResetColor();
+            foreach (var vi in package.VehicleInfos)
+            {
+                Console.WriteLine($"  Vehicle: {vi.Model} ({vi.ModelYear}) - {vi.Company}");
+                foreach (var ll in vi.LogicalLinks)
+                {
+                    Console.WriteLine($"    * [{ll.LinkRole}] {ll.ShortName} -> Bus: {ll.PhysicalVehicleLinkShortName} | Protocol: {ll.ResolvedProtocolName} | BaseVariant: {ll.ResolvedBaseVariantName} | Req={ll.PhysicalRequestId} Resp={ll.PhysicalResponseId}");
+                }
+            }
+        }
+
+        if (package.ConsistencyIssues.Count > 0)
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine($"\n--- ISO 22901 CONSISTENCY WARNINGS ({package.ConsistencyIssues.Count}) ---");
+            Console.ResetColor();
+            foreach (var iss in package.ConsistencyIssues)
+            {
+                Console.WriteLine($"  [{iss.Severity}] {iss.StandardRule} | {iss.SourceObject}: {iss.Message}");
             }
         }
 
@@ -416,7 +450,16 @@ internal class Program
         {
             Console.ForegroundColor = ConsoleColor.Cyan;
             Console.WriteLine($"\n================================================================================");
-            Console.WriteLine($"  DIAGNOSTIC LAYER / ECU: {layer.ShortName} ({layer.LayerType})");
+            Console.WriteLine($"  DIAGNOSTIC LAYER / ECU: {layer.ShortName} ({layer.LayerType}) [Container: {layer.ContainerShortName}]");
+            if (layer.ParentRefs.Count > 0)
+            {
+                var parentsStr = string.Join(", ", layer.ParentRefs.Select(p => $"{p.DisplayTarget} ({p.ResolvedLayerType})"));
+                Console.WriteLine($"  ISO 22901-1 Inherits From: {parentsStr}");
+            }
+            if (layer.VariantPatterns.Count > 0)
+            {
+                Console.WriteLine($"  Variant Identification:    {string.Join(" | ", layer.VariantPatterns.Select(vp => vp.Summary))}");
+            }
             Console.WriteLine($"================================================================================");
             Console.ResetColor();
 
@@ -435,11 +478,12 @@ internal class Program
                 {
                     var subFunc = !string.IsNullOrEmpty(s.SubFunctionHex) ? $" [SubFunc: {s.SubFunctionHex}]" : "";
                     var posSid = !string.IsNullOrEmpty(s.PositiveResponseSidHex) ? $" -> PosResp: {s.PositiveResponseSidHex}" : "";
+                    var originTag = s.IsInherited ? $" [<- {s.DefinedInLayer}]" : " [Own]";
                     Console.Write("    * ");
                     Console.ForegroundColor = ConsoleColor.Green;
                     Console.Write($"[{s.ServiceIdHex}] ");
                     Console.ResetColor();
-                    Console.WriteLine($"{s.ShortName,-34} Semantic: {s.Semantic,-14}{subFunc}{posSid}");
+                    Console.WriteLine($"{s.ShortName,-36} {originTag,-26} Semantic: {s.Semantic,-14}{subFunc}{posSid}");
                 }
             }
             else
@@ -484,11 +528,12 @@ internal class Program
                 {
                     var subFunc = !string.IsNullOrEmpty(s.SubFunctionHex) ? $" [SubFunc: {s.SubFunctionHex}]" : "";
                     var posSid = !string.IsNullOrEmpty(s.PositiveResponseSidHex) ? $" -> PosResp: {s.PositiveResponseSidHex}" : "";
+                    var originTag = s.IsInherited ? $" [<- {s.DefinedInLayer}]" : " [Own]";
                     Console.Write("    * ");
                     Console.ForegroundColor = ConsoleColor.DarkYellow;
                     Console.Write($"[{s.ServiceIdHex}] ");
                     Console.ResetColor();
-                    Console.WriteLine($"{s.ShortName,-34} Semantic: {s.Semantic,-14}{subFunc}{posSid}");
+                    Console.WriteLine($"{s.ShortName,-36} {originTag,-26} Semantic: {s.Semantic,-14}{subFunc}{posSid}");
                 }
             }
             else
@@ -501,6 +546,7 @@ internal class Program
                 Console.WriteLine($"\n  Stored Identification Data Identifiers / DIDs ({storedDids.Count}):");
                 foreach (var did in storedDids)
                 {
+                    var unitStr = !string.IsNullOrEmpty(did.Unit) ? $" [{did.Unit}]" : "";
                     var accessColor = did.Access.Contains("Write") ? ConsoleColor.Magenta : ConsoleColor.Green;
                     Console.Write("    * ");
                     Console.ForegroundColor = ConsoleColor.DarkYellow;
@@ -510,7 +556,7 @@ internal class Program
                     Console.ForegroundColor = accessColor;
                     Console.Write($"{did.Access,-10}");
                     Console.ResetColor();
-                    Console.WriteLine($" Len: {did.ByteLength}B, Type: {did.DataType}");
+                    Console.WriteLine($" Len: {did.ByteLength}B, Type: {did.DataType}{unitStr}");
                 }
             }
 
@@ -544,11 +590,12 @@ internal class Program
                 {
                     var subFunc = !string.IsNullOrEmpty(s.SubFunctionHex) ? $" [SubFunc: {s.SubFunctionHex}]" : "";
                     var posSid = !string.IsNullOrEmpty(s.PositiveResponseSidHex) ? $" -> PosResp: {s.PositiveResponseSidHex}" : "";
+                    var originTag = s.IsInherited ? $" [<- {s.DefinedInLayer}]" : " [Own]";
                     Console.Write("    * ");
                     Console.ForegroundColor = ConsoleColor.Cyan;
                     Console.Write($"[{s.ServiceIdHex}] ");
                     Console.ResetColor();
-                    Console.WriteLine($"{s.ShortName,-34} Semantic: {s.Semantic,-14}{subFunc}{posSid}");
+                    Console.WriteLine($"{s.ShortName,-36} {originTag,-26} Semantic: {s.Semantic,-14}{subFunc}{posSid}");
                 }
             }
 
@@ -621,7 +668,8 @@ internal class Program
         Console.WriteLine("  g. Test Excel Workbook Generation & Sheets");
         Console.WriteLine("  h. Test Temporary Diagnostic Session Lifecycle & Auto-Cleanup");
         Console.WriteLine("  i. Test Stored Data vs Current Data Categorization");
-        Console.Write("\nChoice (a-i): ");
+        Console.WriteLine("  j. Test ISO 22901-1 / 22901-2 Cross-File Linking, Inheritance & Topology");
+        Console.Write("\nChoice (a-j): ");
 
         var subChoice = Console.ReadLine()?.Trim().ToLowerInvariant();
         var runner = new TestRunner();
@@ -656,6 +704,10 @@ internal class Program
                 break;
             case "i":
                 runner.RunTest("Stored vs Current Diagnostic Data Categorization", ParserPartTests.TestStoredAndCurrentDataCategorization);
+                break;
+            case "j":
+                runner.RunTest("ISO 22901-2 ABLOCKs & Cross-File ODX-C/E/D/V Linking", ParserPartTests.TestIsoStandardPdxAndOdxCrossLinking);
+                runner.RunTest("ISO 22901-1 Inheritance Exclusions, Patterns & Consistency", ParserPartTests.TestIsoInheritanceAndConsistencyValidation);
                 break;
             default:
                 Console.WriteLine("Invalid choice.");

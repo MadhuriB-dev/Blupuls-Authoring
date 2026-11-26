@@ -10,7 +10,7 @@ public enum DiagnosticLayerType
 }
 
 /// <summary>
-/// Represents an ODX diagnostic layer (e.g. ECU-VARIANT, BASE-VARIANT, PROTOCOL).
+/// Represents an ODX diagnostic layer (e.g. ECU-VARIANT, BASE-VARIANT, PROTOCOL, FUNCTIONAL-GROUP, ECU-SHARED-DATA) per ISO 22901-1.
 /// </summary>
 public class DiagnosticLayer
 {
@@ -23,9 +23,46 @@ public class DiagnosticLayer
     public string SourceFileName { get; set; } = string.Empty;
 
     /// <summary>
-    /// Diagnostic services defined in or inherited by this layer.
+    /// ISO 22901-1 parent DIAG-LAYER-CONTAINER SHORT-NAME (used as DOCREF in cross-file PDX ODX-LINK references).
+    /// </summary>
+    public string ContainerShortName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// ISO 22901-1 PARENT-REFS establishing inheritance links to BaseVariant, Protocol, FunctionalGroup, or EcuSharedData.
+    /// </summary>
+    public List<LayerParentRef> ParentRefs { get; set; } = new();
+
+    /// <summary>
+    /// True once ISO 22901-1 parent layer inheritance has been resolved onto this layer.
+    /// </summary>
+    public bool InheritanceResolved { get; set; }
+
+    /// <summary>
+    /// For PROTOCOL layers: reference to COMPARAM-SPEC in ODX-C.
+    /// </summary>
+    public string ComParamSpecRef { get; set; } = string.Empty;
+    public string ComParamSpecDocRef { get; set; } = string.Empty;
+    public string ProtStackShortName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// For ECU-VARIANT layers: identification patterns used to match this ECU Variant at runtime.
+    /// </summary>
+    public List<EcuVariantPattern> VariantPatterns { get; set; } = new();
+
+    /// <summary>
+    /// Effective diagnostic services available on this layer (own services + inherited services per ISO 22901-1).
     /// </summary>
     public List<DiagnosticService> Services { get; set; } = new();
+
+    /// <summary>
+    /// Services directly defined in this layer (not inherited).
+    /// </summary>
+    public IEnumerable<DiagnosticService> OwnServices => Services.Where(s => !s.IsInherited);
+
+    /// <summary>
+    /// Services inherited from ParentRefs (BaseVariant, Protocol, FunctionalGroup, EcuSharedData).
+    /// </summary>
+    public IEnumerable<DiagnosticService> InheritedServices => Services.Where(s => s.IsInherited);
 
     /// <summary>
     /// Services categorized as Current Data (Live dynamic sensor telemetry / periodic).
@@ -58,7 +95,7 @@ public class DiagnosticLayer
     public IEnumerable<DiagnosticDataIdentifier> StoredDataDids => DataIdentifiers.Where(d => d.DataCategory == "Stored Data");
 
     /// <summary>
-    /// Diagnostic Trouble Codes (DTCs) defined for this ECU / layer.
+    /// Diagnostic Trouble Codes (DTCs) defined for or inherited by this ECU / layer.
     /// </summary>
     public List<DiagnosticTroubleCode> DiagnosticTroubleCodes { get; set; } = new();
 
@@ -68,8 +105,17 @@ public class DiagnosticLayer
     public List<DataObjectProperty> DataObjectProperties { get; set; } = new();
 
     /// <summary>
+    /// Physical units parsed from UNIT-SPEC.
+    /// </summary>
+    public List<PhysicalUnitInfo> Units { get; set; } = new();
+
+    /// <summary>
+    /// ODX Tables / TableRows (keyed DID or Routine structures).
+    /// </summary>
+    public List<OdxTableRowInfo> TableRows { get; set; } = new();
+
+    /// <summary>
     /// Communication parameters (CAN ID, Baudrate, Timings).
     /// </summary>
     public List<CommunicationParameter> CommunicationParameters { get; set; } = new();
 }
-

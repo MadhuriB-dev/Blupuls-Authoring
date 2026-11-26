@@ -6,6 +6,16 @@ A high-performance C# / .NET library and console utility to parse **ODX** (Open 
 
 ## 🌟 Key Features
 
+* **Complete ISO 22901-1 (ODX) & ISO 22901-2 (PDX) Connection Engine (`OdxIsoLinker`)**:
+  - **ISO 22901-2 PDX Manifest (`index.xml`)**: Parses both standard `<ABLOCKS>` / `<ABLOCK>` archives (`ODX-COMPARAM-SPEC`, `ODX-ECU-CONFIG`, `ODX-DATA`, `ODX-VEHICLE-INFO`) and `<CATALOG-ELEMENTS>`.
+  - **ISO 22901-1 Multi-Layer Cross-File Inheritance (`PARENT-REFS`)**: Connects `ECU-VARIANT` $\rightarrow$ `BASE-VARIANT` $\rightarrow$ `PROTOCOL` / `FUNCTIONAL-GROUP` / `ECU-SHARED-DATA` (with `DOCREF`, `NOT-INHERITED-DIAG-COMMS`, `UNIT-REF`, and `DOP-REF` resolution).
+  - **ODX-V Vehicle Topology & Logical Links**: Connects Physical Vehicle Links (CAN HS/DoIP) $\rightarrow$ Logical Links (`0x7E0`/`0x7E8`/`0x7DF`) $\rightarrow$ Protocol & BaseVariant.
+  - **ODX-C Protocol Stacks & ComParam Specs**: Parses `<COMPARAM-SPEC>`, `<PROT-STACK>`, and `<COMPARAM-SUBSET>` definitions and inherits bus timings onto connected ECUs.
+  - **Variant Identification Patterns & Consistency Check**: Parses `<ECU-VARIANT-PATTERNS>` and validates unresolved references or missing archive blocks.
+* **Bluepuls Authoring Tool (WPF Desktop Suite)**:
+  - Interactive Softing DTS-style **Diagnostic Layer Containers** tree visualizing Vehicle Topology (`ODX-V`), PDX `ABLOCKS`, Protocols (`ODX-C`), Shared Data, Functional Groups, BaseVariants, and connected **ECU Variants** (`Current Data`, `Stored Data`, `System Control`).
+  - Built-in **ISO Connections & Topology** inspector tab showing `PARENT-REFS` chains, Logical Links, Variant Patterns, and Consistency Audit findings.
+  - Live Service/DID filtering, Request/Response PDU Hex previews, Excel/ODX/CSV export, and auto-cleanup of temporary unpacked workspaces.
 * **Automotive Diagnostic Data Categorization (Stored Data vs Current Data)**:
   - **Categorized Services & DIDs**: Automatically analyzes ODX semantic tags, UDS service IDs (`0x19`, `0x14`, `0x22`, `0x2A`), DID hex ranges (e.g. `0xF180-0xF1FF` for ISO 14229-1 identification records), and telemetry keywords to classify data into:
     - **`Current Data`**: Real-time telemetry, dynamic measurements, periodic sensor values (Engine Speed, Coolant Temp, Battery Voltage).

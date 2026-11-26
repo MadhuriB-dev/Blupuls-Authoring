@@ -6,7 +6,8 @@
         xmlns:vm="clr-namespace:Bluepuls_Authoring_Tool.ViewModels"
         xmlns:views="clr-namespace:Bluepuls_Authoring_Tool.Views"
         mc:Ignorable="d"
-        Title="Softing Diagnostic Tool Set - [Bluepuls Authoring Tool]" Height="880" Width="1400"
+        Title="Softing Diagnostic Tool Set - [Bluepuls Authoring Tool | ISO 22901-1/2 Interactive Editor]"
+        Height="920" Width="1500"
         WindowStartupLocation="CenterScreen">
 
     <Window.DataContext>
@@ -14,20 +15,9 @@
     </Window.DataContext>
 
     <Window.Resources>
-        <!-- Node Type Converters for TreeView Icons -->
-        <views:NodeTypeVisibilityConverter x:Key="RootFolderConverter" TargetType="RootFolder"/>
-        <views:NodeTypeVisibilityConverter x:Key="ContainerConverter" TargetType="Container"/>
-        <views:NodeTypeVisibilityConverter x:Key="FolderConverter" TargetType="Folder"/>
-        <views:NodeTypeVisibilityConverter x:Key="BaseVariantConverter" TargetType="BaseVariant"/>
-        <views:NodeTypeVisibilityConverter x:Key="EcuVariantConverter" TargetType="EcuVariant"/>
-        <views:NodeTypeVisibilityConverter x:Key="ServiceGreenConverter" TargetType="ServiceGreen"/>
-        <views:NodeTypeVisibilityConverter x:Key="ServiceCurrentDataConverter" TargetType="ServiceCurrentData"/>
-        <views:NodeTypeVisibilityConverter x:Key="ServiceStoredDataConverter" TargetType="ServiceStoredData"/>
-        <views:NodeTypeVisibilityConverter x:Key="ServiceControlConverter" TargetType="ServiceControl"/>
-        <views:NodeTypeVisibilityConverter x:Key="DidNodeConverter" TargetType="DidNode"/>
-        <views:NodeTypeVisibilityConverter x:Key="DtcNodeConverter" TargetType="DtcNode"/>
+        <views:BoolToVisibilityConverter x:Key="BoolToVisConverter"/>
+        <views:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisConverter"/>
 
-        <!-- Modern DataGrid Header Style -->
         <Style x:Key="ModernDataGridHeaderStyle" TargetType="DataGridColumnHeader">
             <Setter Property="Background" Value="#1B365D"/>
             <Setter Property="Foreground" Value="White"/>
@@ -38,187 +28,359 @@
             <Setter Property="BorderBrush" Value="#2A4B7C"/>
             <Setter Property="BorderThickness" Value="0,0,1,1"/>
         </Style>
+
+        <!-- Global DataGrid Virtualization & Container Recycling -->
+        <Style TargetType="DataGrid">
+            <Setter Property="EnableRowVirtualization" Value="True"/>
+            <Setter Property="EnableColumnVirtualization" Value="True"/>
+            <Setter Property="VirtualizingPanel.IsVirtualizing" Value="True"/>
+            <Setter Property="VirtualizingPanel.VirtualizationMode" Value="Recycling"/>
+            <Setter Property="ScrollViewer.CanContentScroll" Value="True"/>
+            <Setter Property="ScrollViewer.IsDeferredScrollingEnabled" Value="True"/>
+        </Style>
+
+        <!-- Single-click activation for virtualized TextBlock/ComboBox DataGridTemplateColumn cells -->
+        <Style x:Key="FastComboCellStyle" TargetType="DataGridCell">
+            <Setter Property="Padding" Value="4,0"/>
+            <EventSetter Event="PreviewMouseLeftButtonDown" Handler="EditableComboCell_PreviewMouseLeftButtonDown"/>
+        </Style>
+
+        <!-- Lightweight single-Path TreeView Icon Style (replaces 18 stacked Shapes per row) -->
+        <Style x:Key="TreeIconPathStyle" TargetType="Path">
+            <Setter Property="Width" Value="13"/>
+            <Setter Property="Height" Value="13"/>
+            <Setter Property="Stretch" Value="Uniform"/>
+            <Setter Property="Data" Value="M1,2 L5,2 L7,4 L13,4 L13,11 L1,11 Z"/>
+            <Setter Property="Fill" Value="#E6C200"/>
+            <Setter Property="Stroke" Value="#A68A00"/>
+            <Setter Property="StrokeThickness" Value="0.8"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding NodeType}" Value="Container">
+                    <Setter Property="Data" Value="M1,1 L9,1 L9,8 L1,8 Z M4,4 L12,4 L12,11 L4,11 Z"/>
+                    <Setter Property="Fill" Value="#00B862"/>
+                    <Setter Property="Stroke" Value="#005A30"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding NodeType}" Value="BaseVariant">
+                    <Setter Property="Data" Value="M 7,0 A 7,7 0 1 1 6.99,0 Z"/>
+                    <Setter Property="Fill" Value="#D92525"/>
+                    <Setter Property="Stroke" Value="#901515"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding NodeType}" Value="EcuVariant">
+                    <Setter Property="Data" Value="M 7,0 A 7,7 0 1 1 6.99,0 Z"/>
+                    <Setter Property="Fill" Value="#0066CC"/>
+                    <Setter Property="Stroke" Value="#004488"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding NodeType}" Value="ProtocolNode">
+                    <Setter Property="Data" Value="M 7,0 A 7,7 0 1 1 6.99,0 Z"/>
+                    <Setter Property="Fill" Value="#117864"/>
+                    <Setter Property="Stroke" Value="#0B5345"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding NodeType}" Value="FunctionalGroupNode">
+                    <Setter Property="Data" Value="M 7,0 A 7,7 0 1 1 6.99,0 Z"/>
+                    <Setter Property="Fill" Value="#CA6F1E"/>
+                    <Setter Property="Stroke" Value="#935116"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding NodeType}" Value="VehicleFolder">
+                    <Setter Property="Data" Value="M 7,0 A 7,7 0 1 1 6.99,0 Z"/>
+                    <Setter Property="Fill" Value="#1B365D"/>
+                    <Setter Property="Stroke" Value="#0D213D"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding NodeType}" Value="ServiceCurrentData">
+                    <Setter Property="Data" Value="M2,10 L10,2 M4,2 L10,2 L10,8"/>
+                    <Setter Property="Fill" Value="{x:Null}"/>
+                    <Setter Property="Stroke" Value="#00A859"/>
+                    <Setter Property="StrokeThickness" Value="2"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding NodeType}" Value="ServiceGreen">
+                    <Setter Property="Data" Value="M2,10 L10,2 M4,2 L10,2 L10,8"/>
+                    <Setter Property="Fill" Value="{x:Null}"/>
+                    <Setter Property="Stroke" Value="#00A859"/>
+                    <Setter Property="StrokeThickness" Value="2"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding NodeType}" Value="ServiceStoredData">
+                    <Setter Property="Data" Value="M2,6 L10,6 M7,2 L11,6 L7,10"/>
+                    <Setter Property="Fill" Value="{x:Null}"/>
+                    <Setter Property="Stroke" Value="#D9822B"/>
+                    <Setter Property="StrokeThickness" Value="2"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding NodeType}" Value="ServiceControl">
+                    <Setter Property="Data" Value="M6,1 L11,6 L6,11 L1,6 Z"/>
+                    <Setter Property="Fill" Value="#8A2BE2"/>
+                    <Setter Property="Stroke" Value="#5A189A"/>
+                    <Setter Property="StrokeThickness" Value="1"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding NodeType}" Value="DidNode">
+                    <Setter Property="Data" Value="M2,2 L7,2 L11,6 L7,10 L2,10 Z"/>
+                    <Setter Property="Fill" Value="#00B4D8"/>
+                    <Setter Property="Stroke" Value="#0077B6"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding NodeType}" Value="DtcNode">
+                    <Setter Property="Data" Value="M6,1 L11,10 L1,10 Z"/>
+                    <Setter Property="Fill" Value="#FFB703"/>
+                    <Setter Property="Stroke" Value="#D97706"/>
+                    <Setter Property="StrokeThickness" Value="1"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding NodeType}" Value="LogicalLinkNode">
+                    <Setter Property="Data" Value="M1,6 L11,6 M8,3 L11,6 L8,9"/>
+                    <Setter Property="Fill" Value="{x:Null}"/>
+                    <Setter Property="Stroke" Value="#1565C0"/>
+                    <Setter Property="StrokeThickness" Value="2"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding NodeType}" Value="AblockNode">
+                    <Setter Property="Data" Value="M1,1 L11,1 L11,11 L1,11 Z"/>
+                    <Setter Property="Fill" Value="#6C3483"/>
+                    <Setter Property="Stroke" Value="#4A235A"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding NodeType}" Value="ParentLinkNode">
+                    <Setter Property="Data" Value="M2,2 L2,8 L10,8 M7,5 L10,8 L7,11"/>
+                    <Setter Property="Fill" Value="{x:Null}"/>
+                    <Setter Property="Stroke" Value="#2980B9"/>
+                    <Setter Property="StrokeThickness" Value="1.8"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding NodeType}" Value="PatternNode">
+                    <Setter Property="Data" Value="M 6,1 A 5,5 0 1 1 5.99,1 Z"/>
+                    <Setter Property="Fill" Value="#EAFAF1"/>
+                    <Setter Property="Stroke" Value="#27AE60"/>
+                    <Setter Property="StrokeThickness" Value="1.5"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="TreeBadgeTextStyle" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="8.5"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,-0.5,0,0"/>
+            <Setter Property="Visibility" Value="Collapsed"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding NodeType}" Value="BaseVariant">
+                    <Setter Property="Text" Value="E"/>
+                    <Setter Property="Foreground" Value="#FFFF00"/>
+                    <Setter Property="Visibility" Value="Visible"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding NodeType}" Value="EcuVariant">
+                    <Setter Property="Text" Value="V"/>
+                    <Setter Property="Foreground" Value="White"/>
+                    <Setter Property="Visibility" Value="Visible"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding NodeType}" Value="ProtocolNode">
+                    <Setter Property="Text" Value="P"/>
+                    <Setter Property="Foreground" Value="White"/>
+                    <Setter Property="Visibility" Value="Visible"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding NodeType}" Value="FunctionalGroupNode">
+                    <Setter Property="Text" Value="F"/>
+                    <Setter Property="Foreground" Value="White"/>
+                    <Setter Property="Visibility" Value="Visible"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding NodeType}" Value="VehicleFolder">
+                    <Setter Property="Text" Value="O"/>
+                    <Setter Property="Foreground" Value="#7FB3D5"/>
+                    <Setter Property="Visibility" Value="Visible"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="ActionButtonStyle" TargetType="Button">
+            <Setter Property="Height" Value="24"/>
+            <Setter Property="Padding" Value="9,0"/>
+            <Setter Property="Margin" Value="2,0"/>
+            <Setter Property="FontFamily" Value="Tahoma"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="BorderBrush" Value="#99A3A4"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+
+        <Style x:Key="PrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource ActionButtonStyle}">
+            <Setter Property="Background" Value="#1B365D"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderBrush" Value="#0E213D"/>
+        </Style>
+
+        <Style x:Key="SuccessButtonStyle" TargetType="Button" BasedOn="{StaticResource ActionButtonStyle}">
+            <Setter Property="Background" Value="#0E6655"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderBrush" Value="#0B5345"/>
+        </Style>
+
+        <Style x:Key="DangerButtonStyle" TargetType="Button" BasedOn="{StaticResource ActionButtonStyle}">
+            <Setter Property="Background" Value="#B03A2E"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderBrush" Value="#78281F"/>
+        </Style>
     </Window.Resources>
 
     <DockPanel Background="#ECE9D8">
         <!-- Main Classic Menu Bar -->
-        <Menu DockPanel.Dock="Top" Background="#ECE9D8" Padding="1" FontFamily="Tahoma" FontSize="11">
+        <Menu DockPanel.Dock="Top" Background="#ECE9D8" Padding="1" FontFamily="Tahoma" FontSize="11"
+              IsEnabled="{Binding IsNotBusy}">
             <MenuItem Header="_File">
-                <MenuItem Header="_Open / Load PDX Archive..." Command="{Binding LoadPdxCommand}"/>
-                <MenuItem Header="_Import Diagnostic File (ODX / XML / CSV)..." Command="{Binding ImportCommand}"/>
-                <MenuItem Header="_Export Report (Excel XLSX / ODX-D / CSV)..." Command="{Binding ExportCommand}"/>
+                <MenuItem Header="_New Authoring Project (Editable ISO ECU)..." Command="{Binding NewProjectCommand}"/>
+                <MenuItem Header="_Open / Load PDX Archive (ISO 22901-2)..." Command="{Binding LoadPdxCommand}"/>
+                <MenuItem Header="_Import Diagnostic File (ODX-D / ODX-C / ODX-V / XML)..." Command="{Binding ImportCommand}"/>
+                <MenuItem Header="_Close / Clear Loaded Package" Command="{Binding ClearWorkspaceCommand}"/>
                 <Separator/>
-                <MenuItem Header="_Save" Command="{Binding ExportCommand}"/>
+                <MenuItem Header="_Save / Export Package (.pdx / .odx-d / .xlsx / .csv)..." Command="{Binding ExportCommand}"/>
                 <Separator/>
                 <MenuItem Header="E_xit" Click="ExitMenuItem_Click"/>
             </MenuItem>
-            <MenuItem Header="_Edit"/>
-            <MenuItem Header="_View"/>
-            <MenuItem Header="_Insert"/>
+            <MenuItem Header="_Authoring">
+                <MenuItem Header="+ _Create New DID" Command="{Binding CreateDidCommand}"/>
+                <MenuItem Header="+ _Create New DOP" Command="{Binding CreateDopCommand}"/>
+                <MenuItem Header="+ _Create New Service" Command="{Binding CreateServiceCommand}"/>
+                <MenuItem Header="+ _Create New DTC" Command="{Binding CreateDtcCommand}"/>
+                <MenuItem Header="+ _Create New ComParam" Command="{Binding CreateComParamCommand}"/>
+                <Separator/>
+                <MenuItem Header="+ _Add ECU Variant" Command="{Binding AddEcuVariantCommand}"/>
+                <MenuItem Header="+ _Add Base Variant" Command="{Binding AddBaseVariantCommand}"/>
+            </MenuItem>
             <MenuItem Header="_Check">
-                <MenuItem Header="_Consistency Check" Command="{Binding ConsistencyCheckCommand}"/>
+                <MenuItem Header="_ISO 22901 Consistency Check" Command="{Binding ConsistencyCheckCommand}"/>
             </MenuItem>
             <MenuItem Header="_Tools">
-                <MenuItem Header="_Load Sample PDX..." Command="{Binding LoadPdxCommand}"/>
-                <MenuItem Header="_Export to Excel..." Command="{Binding ExportCommand}"/>
+                <MenuItem Header="_New Project..." Command="{Binding NewProjectCommand}"/>
+                <MenuItem Header="_Load PDX Package..." Command="{Binding LoadPdxCommand}"/>
+                <MenuItem Header="_Save / Export..." Command="{Binding ExportCommand}"/>
             </MenuItem>
-            <MenuItem Header="_Window"/>
-            <MenuItem Header="_Help"/>
         </Menu>
 
         <!-- Toolbar Tray -->
-        <Border DockPanel.Dock="Top" Background="#ECE9D8" BorderBrush="#999999" BorderThickness="0,1,0,1" Padding="2">
+        <Border DockPanel.Dock="Top" Background="#ECE9D8" BorderBrush="#999999" BorderThickness="0,1,0,1" Padding="3,2"
+                IsEnabled="{Binding IsNotBusy}">
             <StackPanel Orientation="Horizontal">
-                <!-- Open PDX Button -->
-                <Button Height="24" Padding="6,0" Margin="1" ToolTip="Load / Parse PDX Diagnostic Package" Command="{Binding LoadPdxCommand}">
+                <Button Height="24" Padding="7,0" Margin="1" ToolTip="Create a new editable ISO 22901 diagnostic workspace" Command="{Binding NewProjectCommand}">
+                    <StackPanel Orientation="Horizontal">
+                        <Path Data="M3,2 L10,2 L13,5 L13,15 L3,15 Z" Fill="White" Stroke="#1B365D" StrokeThickness="1.2" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                        <TextBlock Text="New Project" FontFamily="Tahoma" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+
+                <Button Height="24" Padding="7,0" Margin="1" ToolTip="Load / Parse ISO 22901-2 PDX Diagnostic Package" Command="{Binding LoadPdxCommand}">
                     <StackPanel Orientation="Horizontal">
                         <Path Data="M2,4 L8,4 L10,6 L18,6 L18,16 L2,16 Z" Fill="#007ACC" Stroke="#005A9E" StrokeThickness="1" VerticalAlignment="Center" Margin="0,0,4,0"/>
                         <TextBlock Text="Load PDX" FontFamily="Tahoma" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
                     </StackPanel>
                 </Button>
 
-                <!-- Import Button -->
-                <Button Height="24" Padding="6,0" Margin="1" ToolTip="Import ODX / XML / CSV File" Command="{Binding ImportCommand}">
+                <Button Height="24" Padding="7,0" Margin="1" ToolTip="Import ODX-D / ODX-C / ODX-V / XML File" Command="{Binding ImportCommand}">
                     <StackPanel Orientation="Horizontal">
                         <Path Data="M7,1 L7,10 M4,7 L7,10 L10,7 M2,13 L12,13" Stroke="#0066CC" StrokeThickness="1.6" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                        <TextBlock Text="Import" FontFamily="Tahoma" FontSize="11" VerticalAlignment="Center"/>
+                        <TextBlock Text="Import ODX" FontFamily="Tahoma" FontSize="11" VerticalAlignment="Center"/>
                     </StackPanel>
                 </Button>
 
-                <!-- Export Button -->
-                <Button Height="24" Padding="6,0" Margin="1" ToolTip="Export to Excel (.xlsx) / ODX-D / CSV" Command="{Binding ExportCommand}">
+                <Button Height="24" Padding="7,0" Margin="1" ToolTip="Save / Export edited package to .pdx, .odx-d, .xlsx, or .csv" Command="{Binding ExportCommand}">
                     <StackPanel Orientation="Horizontal">
                         <Path Data="M7,10 L7,1 M4,4 L7,1 L10,4 M2,13 L12,13" Stroke="#008A3E" StrokeThickness="1.6" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                        <TextBlock Text="Export (Excel)" FontFamily="Tahoma" FontSize="11" VerticalAlignment="Center"/>
+                        <TextBlock Text="Save / Export" FontFamily="Tahoma" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
                     </StackPanel>
                 </Button>
 
                 <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="4,2"/>
 
-                <!-- Consistency Check Button -->
-                <Button Height="24" Padding="6,0" Margin="1" ToolTip="Run Consistency Check on Diagnostic Data" Command="{Binding ConsistencyCheckCommand}">
+                <Button Height="24" Padding="7,0" Margin="1" ToolTip="Run ISO 22901 Cross-Reference &amp; Inheritance Check" Command="{Binding ConsistencyCheckCommand}">
                     <StackPanel Orientation="Horizontal">
                         <Path Data="M3,9 L7,13 L15,3" Stroke="#28A745" StrokeThickness="2.2" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                        <TextBlock Text="Check" FontFamily="Tahoma" FontSize="11" VerticalAlignment="Center"/>
+                        <TextBlock Text="ISO Check" FontFamily="Tahoma" FontSize="11" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+
+                <Button Height="24" Padding="7,0" Margin="1" ToolTip="Close Loaded Package &amp; Clear Workspace" Command="{Binding ClearWorkspaceCommand}">
+                    <StackPanel Orientation="Horizontal">
+                        <Path Data="M3,3 L11,11 M11,3 L3,11" Stroke="#C0392B" StrokeThickness="1.8" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                        <TextBlock Text="Clear" FontFamily="Tahoma" FontSize="11" VerticalAlignment="Center"/>
                     </StackPanel>
                 </Button>
 
                 <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="6,2"/>
 
-                <!-- ODX Selection Dropdown -->
-                <TextBlock Text=" Package / ODX: " VerticalAlignment="Center" FontFamily="Tahoma" FontSize="11" FontWeight="Bold"/>
-                <ComboBox ItemsSource="{Binding OdxProjects}" SelectedItem="{Binding SelectedOdxProject, Mode=TwoWay}" Width="190" Height="22" FontFamily="Tahoma" FontSize="11"/>
+                <TextBlock Text=" PDX / ODX: " VerticalAlignment="Center" FontFamily="Tahoma" FontSize="11" FontWeight="Bold"/>
+                <ComboBox ItemsSource="{Binding OdxProjects}" SelectedItem="{Binding SelectedOdxProject, Mode=TwoWay}" Width="185" Height="22" FontFamily="Tahoma" FontSize="11"/>
 
-                <!-- ECU Selection Dropdown -->
-                <TextBlock Text=" ECU: " VerticalAlignment="Center" FontFamily="Tahoma" FontSize="11" FontWeight="Bold" Margin="6,0,0,0"/>
-                <ComboBox ItemsSource="{Binding EcuList}" SelectedItem="{Binding SelectedEcu, Mode=TwoWay}" Width="160" Height="22" FontFamily="Tahoma" FontSize="11"/>
+                <TextBlock Text=" Active Layer / Variant: " VerticalAlignment="Center" FontFamily="Tahoma" FontSize="11" FontWeight="Bold" Margin="6,0,0,0"/>
+                <ComboBox ItemsSource="{Binding EcuList}" SelectedItem="{Binding SelectedEcu, Mode=TwoWay}" Width="210" Height="22" FontFamily="Tahoma" FontSize="11"/>
             </StackPanel>
         </Border>
 
+        <!-- Non-blocking Background Progress Indicator Banner -->
+        <Border DockPanel.Dock="Top" Background="#D6EAF8" BorderBrush="#85C1E9" BorderThickness="0,0,0,1" Padding="8,4"
+                Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisConverter}}">
+            <DockPanel>
+                <ProgressBar DockPanel.Dock="Right" IsIndeterminate="True" Width="180" Height="12" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding BusyMessage}" FontFamily="Tahoma" FontSize="11" FontWeight="Bold" Foreground="#1B4F72" VerticalAlignment="Center"/>
+            </DockPanel>
+        </Border>
+
+        <!-- Live Authoring Status Bar -->
+        <StatusBar DockPanel.Dock="Bottom" Background="#E2E7ED" BorderBrush="#999999" BorderThickness="0,1,0,0" FontFamily="Tahoma" FontSize="11">
+            <StatusBarItem>
+                <TextBlock Text="{Binding StatusMessage}" FontWeight="SemiBold" Foreground="#1B365D"/>
+            </StatusBarItem>
+        </StatusBar>
+
         <!-- Main Workspace Area -->
-        <Grid Margin="2">
+        <Grid Margin="2" IsEnabled="{Binding IsNotBusy}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="380" MinWidth="260"/>
                 <ColumnDefinition Width="5"/>
-                <ColumnDefinition Width="*" MinWidth="500"/>
+                <ColumnDefinition Width="*" MinWidth="540"/>
             </Grid.ColumnDefinitions>
 
-            <!-- LEFT PANEL: Diagnostic Layer Containers (DLC) TreeView -->
+            <!-- LEFT PANEL: ISO 22901 Diagnostic Layer Containers (DLC) Virtualized TreeView -->
             <Border Grid.Column="0" Background="White" BorderBrush="#999999" BorderThickness="1">
                 <DockPanel>
                     <Border DockPanel.Dock="Top" Background="#E2E7ED" BorderBrush="#CCCCCC" BorderThickness="0,0,0,1" Padding="6,4">
-                        <TextBlock Text="DIAGNOSTIC LAYER CONTAINERS" FontFamily="Tahoma" FontSize="10" FontWeight="Bold" Foreground="#333333"/>
+                        <TextBlock Text="ISO 22901-1 / 22901-2 DIAGNOSTIC LAYER CONTAINERS" FontFamily="Tahoma" FontSize="10" FontWeight="Bold" Foreground="#333333"/>
                     </Border>
 
-                    <TreeView ItemsSource="{Binding DiagnosticTreeNodes}" 
-                              SelectedItemChanged="TreeView_SelectedItemChanged"
-                              BorderThickness="0" Padding="3" FontFamily="Tahoma" FontSize="11">
-                        <TreeView.ItemContainerStyle>
-                            <Style TargetType="TreeViewItem">
-                                <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
-                                <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
-                                <Setter Property="Padding" Value="1,2"/>
-                            </Style>
-                        </TreeView.ItemContainerStyle>
+                    <Grid>
+                        <TreeView ItemsSource="{Binding DiagnosticTreeNodes}"
+                                  SelectedItemChanged="TreeView_SelectedItemChanged"
+                                  VirtualizingStackPanel.IsVirtualizing="True"
+                                  VirtualizingStackPanel.VirtualizationMode="Recycling"
+                                  ScrollViewer.IsDeferredScrollingEnabled="True"
+                                  BorderThickness="0" Padding="3" FontFamily="Tahoma" FontSize="11">
+                            <TreeView.ItemContainerStyle>
+                                <Style TargetType="TreeViewItem">
+                                    <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+                                    <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
+                                    <Setter Property="Padding" Value="1,2"/>
+                                </Style>
+                            </TreeView.ItemContainerStyle>
 
-                        <TreeView.ItemTemplate>
-                            <HierarchicalDataTemplate ItemsSource="{Binding Children}">
-                                <StackPanel Orientation="Horizontal" Margin="1,1">
-                                    <!-- 1. Root Folder Icon -->
-                                    <Grid Visibility="{Binding NodeType, Converter={StaticResource RootFolderConverter}}" Margin="0,0,4,0">
-                                        <Path Data="M1,2 L5,2 L7,4 L13,4 L13,11 L1,11 Z" Fill="#E6C200" Stroke="#A68A00" StrokeThickness="0.8" Width="13" Height="11"/>
-                                    </Grid>
+                            <TreeView.ItemTemplate>
+                                <HierarchicalDataTemplate ItemsSource="{Binding Children}">
+                                    <StackPanel Orientation="Horizontal" Margin="1,1">
+                                        <Grid Width="14" Height="14" Margin="0,0,4,0">
+                                            <Path Style="{StaticResource TreeIconPathStyle}"/>
+                                            <TextBlock Style="{StaticResource TreeBadgeTextStyle}"/>
+                                        </Grid>
+                                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center" FontFamily="Tahoma" FontSize="11"/>
+                                    </StackPanel>
+                                </HierarchicalDataTemplate>
+                            </TreeView.ItemTemplate>
+                        </TreeView>
 
-                                    <!-- 2. Container Icon (DLC) -->
-                                    <Canvas Visibility="{Binding NodeType, Converter={StaticResource ContainerConverter}}" Margin="0,0,4,0" Width="14" Height="14">
-                                        <Rectangle Canvas.Left="0" Canvas.Top="0" Width="10" Height="8" Fill="#00A859" Stroke="#005A30" StrokeThickness="0.8"/>
-                                        <Rectangle Canvas.Left="3" Canvas.Top="4" Width="10" Height="8" Fill="#00C86E" Stroke="#005A30" StrokeThickness="0.8"/>
-                                    </Canvas>
-
-                                    <!-- 3. Sub-Folder Icon -->
-                                    <Grid Visibility="{Binding NodeType, Converter={StaticResource FolderConverter}}" Margin="0,0,4,0">
-                                        <Path Data="M1,2 L5,2 L7,4 L13,4 L13,11 L1,11 Z" Fill="#E6C200" Stroke="#A68A00" StrokeThickness="0.8" Width="13" Height="11"/>
-                                    </Grid>
-
-                                    <!-- 4. ECU BaseVariant Icon (Red Circle with Yellow 'E') -->
-                                    <Grid Visibility="{Binding NodeType, Converter={StaticResource BaseVariantConverter}}" Margin="0,0,4,0" Width="14" Height="14">
-                                        <Ellipse Width="14" Height="14" Fill="#D92525" Stroke="#901515" StrokeThickness="0.8"/>
-                                        <TextBlock Text="E" Foreground="#FFFF00" FontWeight="Bold" FontSize="10" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-1,0,0"/>
-                                    </Grid>
-
-                                    <!-- 5. ECU Variant Icon (Blue Circle with White 'V') -->
-                                    <Grid Visibility="{Binding NodeType, Converter={StaticResource EcuVariantConverter}}" Margin="0,0,4,0" Width="14" Height="14">
-                                        <Ellipse Width="14" Height="14" Fill="#0066CC" Stroke="#004488" StrokeThickness="0.8"/>
-                                        <TextBlock Text="V" Foreground="White" FontWeight="Bold" FontSize="9" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-1,0,0"/>
-                                    </Grid>
-
-                                    <!-- 6. Current Data Service (Green Telemetry Arrow) -->
-                                    <Grid Visibility="{Binding NodeType, Converter={StaticResource ServiceCurrentDataConverter}}" Margin="0,0,4,0" Width="13" Height="13">
-                                        <Path Data="M2,10 L10,2 M4,2 L10,2 L10,8" Stroke="#00A859" StrokeThickness="2"/>
-                                        <Ellipse Canvas.Left="1" Canvas.Top="9" Width="3" Height="3" Fill="#00A859"/>
-                                    </Grid>
-
-                                    <!-- 7. Stored Data Service (Amber / Gold Database Arrow) -->
-                                    <Grid Visibility="{Binding NodeType, Converter={StaticResource ServiceStoredDataConverter}}" Margin="0,0,4,0" Width="13" Height="13">
-                                        <Path Data="M2,6 L10,6 M7,2 L11,6 L7,10" Stroke="#D9822B" StrokeThickness="2"/>
-                                    </Grid>
-
-                                    <!-- 8. Control Service (Purple Gear / Diamond) -->
-                                    <Grid Visibility="{Binding NodeType, Converter={StaticResource ServiceControlConverter}}" Margin="0,0,4,0" Width="13" Height="13">
-                                        <Path Data="M6,1 L11,6 L6,11 L1,6 Z" Fill="#8A2BE2" Stroke="#5A189A" StrokeThickness="1"/>
-                                    </Grid>
-
-                                    <!-- 9. DID Node Icon (Cyan Tag) -->
-                                    <Grid Visibility="{Binding NodeType, Converter={StaticResource DidNodeConverter}}" Margin="0,0,4,0" Width="12" Height="12">
-                                        <Path Data="M2,2 L7,2 L11,6 L7,10 L2,10 Z" Fill="#00B4D8" Stroke="#0077B6" StrokeThickness="0.8"/>
-                                    </Grid>
-
-                                    <!-- 10. DTC Node Icon (Warning Triangle) -->
-                                    <Grid Visibility="{Binding NodeType, Converter={StaticResource DtcNodeConverter}}" Margin="0,0,4,0" Width="12" Height="12">
-                                        <Path Data="M6,1 L11,10 L1,10 Z" Fill="#FFB703" Stroke="#D97706" StrokeThickness="1"/>
-                                    </Grid>
-
-                                    <!-- 11. Generic Green Service Icon -->
-                                    <Grid Visibility="{Binding NodeType, Converter={StaticResource ServiceGreenConverter}}" Margin="0,0,4,0" Width="12" Height="12">
-                                        <Path Data="M2,10 L10,2 M4,2 L10,2 L10,8" Stroke="#00A859" StrokeThickness="2"/>
-                                    </Grid>
-
-                                    <!-- Node Name -->
-                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center" FontFamily="Tahoma" FontSize="11"/>
-                                </StackPanel>
-                            </HierarchicalDataTemplate>
-                        </TreeView.ItemTemplate>
-                    </TreeView>
+                        <!-- Empty State Prompt -->
+                        <StackPanel Visibility="{Binding IsPackageLoaded, Converter={StaticResource InverseBoolToVisConverter}}"
+                                    VerticalAlignment="Center" HorizontalAlignment="Center" Margin="20">
+                            <TextBlock Text="No PDX / ODX Package Loaded" FontWeight="Bold" FontSize="12" Foreground="#555555" HorizontalAlignment="Center"/>
+                            <TextBlock Text="Click 'New Project', 'Load PDX', or 'Import ODX' above to author or edit ISO 22901 data." FontSize="11" Foreground="#777777" TextWrapping="Wrap" TextAlignment="Center" Margin="0,6,0,0"/>
+                        </StackPanel>
+                    </Grid>
                 </DockPanel>
             </Border>
 
             <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" Background="#ECE9D8"/>
 
-            <!-- RIGHT PANEL: Diagnostic Workspace Inspector -->
+            <!-- RIGHT PANEL: Full Editable Authoring Workspace -->
             <Border Grid.Column="2" Background="White" BorderBrush="#999999" BorderThickness="1">
                 <DockPanel>
                     <!-- Header Banner -->
-                    <Border DockPanel.Dock="Top" Background="#1B365D" Padding="10,8">
+                    <Border DockPanel.Dock="Top" Background="#1B365D" Padding="10,7">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
@@ -227,16 +389,18 @@
 
                             <StackPanel Grid.Column="0">
                                 <TextBlock Text="{Binding ActiveWorkspaceTitle}" Foreground="White" FontFamily="Tahoma" FontSize="13" FontWeight="Bold"/>
-                                <TextBlock Text="Extracted from ODX-D / PDX via OdxDiagnosticParser Engine" Foreground="#A9CCE3" FontFamily="Tahoma" FontSize="10" Margin="0,2,0,0"/>
+                                <TextBlock Text="{Binding ActiveWorkspaceSubtitle}" Foreground="#A9CCE3" FontFamily="Tahoma" FontSize="10" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
                             </StackPanel>
 
-                            <!-- Badge Metrics -->
                             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                                 <Border Background="#0E6655" CornerRadius="3" Padding="6,2" Margin="2,0">
                                     <TextBlock Text="{Binding CurrentDataServicesCount, StringFormat='Current Data: {0}'}" Foreground="White" FontSize="10" FontWeight="Bold"/>
                                 </Border>
                                 <Border Background="#B7950B" CornerRadius="3" Padding="6,2" Margin="2,0">
                                     <TextBlock Text="{Binding StoredDataServicesCount, StringFormat='Stored Data: {0}'}" Foreground="White" FontSize="10" FontWeight="Bold"/>
+                                </Border>
+                                <Border Background="#1F618D" CornerRadius="3" Padding="6,2" Margin="2,0">
+                                    <TextBlock Text="{Binding InheritedServicesCount, StringFormat='Inherited (ISO): {0}'}" Foreground="White" FontSize="10" FontWeight="Bold"/>
                                 </Border>
                                 <Border Background="#2C3E50" CornerRadius="3" Padding="6,2" Margin="2,0">
                                     <TextBlock Text="{Binding TotalServicesCount, StringFormat='Total Services: {0}'}" Foreground="White" FontSize="10" FontWeight="Bold"/>
@@ -246,237 +410,706 @@
                     </Border>
 
                     <!-- Workspace Tabs -->
-                    <TabControl BorderThickness="0,1,0,0" BorderBrush="#999999" FontFamily="Tahoma" FontSize="11">
-                        <!-- TAB 1: DIAGNOSTIC SERVICES (ODX-D) -->
+                    <TabControl SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}"
+                                BorderThickness="0,1,0,0" BorderBrush="#999999" FontFamily="Tahoma" FontSize="11">
+
+                        <!-- TAB 1: DIAGNOSTIC SERVICES (ODX-D) - EDITABLE -->
                         <TabItem Header="Diagnostic Services (ODX-D)">
-                            <DataGrid ItemsSource="{Binding LayerServices}" 
-                                      AutoGenerateColumns="False" 
-                                      IsReadOnly="True" 
-                                      CanUserAddRows="False"
-                                      GridLinesVisibility="All" 
-                                      HorizontalGridLinesBrush="#E0E0E0" 
-                                      VerticalGridLinesBrush="#E0E0E0"
-                                      ColumnHeaderStyle="{StaticResource ModernDataGridHeaderStyle}"
-                                      RowHeight="24"
-                                      FontFamily="Tahoma" 
-                                      FontSize="11">
-                                <DataGrid.Columns>
-                                    <DataGridTextColumn Header="Category" Binding="{Binding DataCategory}" Width="110"/>
-                                    <DataGridTextColumn Header="SID" Binding="{Binding ServiceIdHex}" Width="70">
-                                        <DataGridTextColumn.ElementStyle>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="HorizontalAlignment" Value="Center"/>
-                                                <Setter Property="FontWeight" Value="Bold"/>
-                                            </Style>
-                                        </DataGridTextColumn.ElementStyle>
-                                    </DataGridTextColumn>
-                                    <DataGridTextColumn Header="Service Name" Binding="{Binding ShortName}" Width="260"/>
-                                    <DataGridTextColumn Header="Semantic" Binding="{Binding Semantic}" Width="130"/>
-                                    <DataGridTextColumn Header="Sub-Func" Binding="{Binding SubFunctionHex}" Width="80">
-                                        <DataGridTextColumn.ElementStyle>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="HorizontalAlignment" Value="Center"/>
-                                            </Style>
-                                        </DataGridTextColumn.ElementStyle>
-                                    </DataGridTextColumn>
-                                    <DataGridTextColumn Header="Pos Resp SID" Binding="{Binding PositiveResponseSidHex}" Width="90">
-                                        <DataGridTextColumn.ElementStyle>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="HorizontalAlignment" Value="Center"/>
-                                            </Style>
-                                        </DataGridTextColumn.ElementStyle>
-                                    </DataGridTextColumn>
-                                    <DataGridTextColumn Header="Req Params" Binding="{Binding RequestParameters.Count}" Width="80">
-                                        <DataGridTextColumn.ElementStyle>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="HorizontalAlignment" Value="Right"/>
-                                            </Style>
-                                        </DataGridTextColumn.ElementStyle>
-                                    </DataGridTextColumn>
-                                    <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*"/>
-                                </DataGrid.Columns>
-                            </DataGrid>
+                            <DockPanel>
+                                <Border DockPanel.Dock="Top" Background="#F4F6F9" BorderBrush="#D5D8DC" BorderThickness="0,0,0,1" Padding="6,5">
+                                    <WrapPanel Orientation="Horizontal">
+                                        <Button Content="+ Create Service" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding CreateServiceCommand}"/>
+                                        <Button Content="Save Service Changes" Style="{StaticResource SuccessButtonStyle}" Command="{Binding ApplyServiceEditsCommand}"/>
+                                        <Button Content="Delete Service" Style="{StaticResource DangerButtonStyle}" Command="{Binding DeleteServiceCommand}"/>
+
+                                        <Separator Width="12" Opacity="0"/>
+                                        <TextBlock Text="Category:" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,4,0"/>
+                                        <ComboBox ItemsSource="{Binding ServiceCategoryFilters}" SelectedItem="{Binding ServiceCategoryFilter, Mode=TwoWay}" Width="115" Height="22" Margin="0,0,8,0"/>
+                                        <TextBlock Text="Scope:" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,4,0"/>
+                                        <ComboBox ItemsSource="{Binding ServiceScopeFilters}" SelectedItem="{Binding ServiceScopeFilter, Mode=TwoWay}" Width="135" Height="22" Margin="0,0,8,0"/>
+                                        <TextBlock Text="Search:" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,4,0"/>
+                                        <TextBox Text="{Binding ServiceSearchText, UpdateSourceTrigger=PropertyChanged}" Width="150" Height="22" VerticalContentAlignment="Center" Padding="4,0"/>
+                                    </WrapPanel>
+                                </Border>
+
+                                <DataGrid ItemsSource="{Binding LayerServices}"
+                                          SelectedItem="{Binding SelectedService, Mode=TwoWay}"
+                                          AutoGenerateColumns="False"
+                                          IsReadOnly="False"
+                                          CanUserAddRows="False"
+                                          CanUserDeleteRows="False"
+                                          GridLinesVisibility="All"
+                                          HorizontalGridLinesBrush="#E0E0E0"
+                                          VerticalGridLinesBrush="#E0E0E0"
+                                          ColumnHeaderStyle="{StaticResource ModernDataGridHeaderStyle}"
+                                          RowHeight="26">
+                                    <DataGrid.Columns>
+                                        <DataGridTemplateColumn Header="Category" Width="115" CellStyle="{StaticResource FastComboCellStyle}">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding DataCategory}" VerticalAlignment="Center"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                            <DataGridTemplateColumn.CellEditingTemplate>
+                                                <DataTemplate>
+                                                    <ComboBox ItemsSource="{Binding DataContext.ServiceCategoryOptions, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                              SelectedItem="{Binding DataCategory, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                              Height="22"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellEditingTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTextColumn Header="SID" Binding="{Binding ServiceIdHex}" Width="60"/>
+                                        <DataGridTextColumn Header="Service Name" Binding="{Binding ShortName}" Width="230"/>
+                                        <DataGridTextColumn Header="ISO Origin" Binding="{Binding InheritanceScope}" IsReadOnly="True" Width="165"/>
+                                        <DataGridTemplateColumn Header="Addressing" Width="125" CellStyle="{StaticResource FastComboCellStyle}">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Addressing}" VerticalAlignment="Center"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                            <DataGridTemplateColumn.CellEditingTemplate>
+                                                <DataTemplate>
+                                                    <ComboBox ItemsSource="{Binding DataContext.AddressingOptions, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                              SelectedItem="{Binding Addressing, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                              Height="22"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellEditingTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTextColumn Header="Semantic" Binding="{Binding Semantic}" Width="110"/>
+                                        <DataGridTextColumn Header="Sub-Func" Binding="{Binding SubFunctionHex}" Width="70"/>
+                                        <DataGridTextColumn Header="Pos Resp" Binding="{Binding PositiveResponseSidHex}" Width="70"/>
+                                        <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </DockPanel>
                         </TabItem>
 
-                        <!-- TAB 2: SERVICE INSPECTOR (PARAMETERS & NRCS) -->
+                        <!-- TAB 2: DATA IDENTIFIERS (DIDS) - FULL CREATE / EDIT / DELETE / ASSIGN DOP -->
+                        <TabItem Header="Data Identifiers (DIDs)">
+                            <DockPanel>
+                                <!-- Top Authoring Action & Quick DOP Assignment Bar -->
+                                <Border DockPanel.Dock="Top" Background="#F4F6F9" BorderBrush="#D5D8DC" BorderThickness="0,0,0,1" Padding="6,5">
+                                    <WrapPanel Orientation="Horizontal">
+                                        <Button Content="+ Create DID" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding CreateDidCommand}"/>
+                                        <Button Content="Apply / Edit DID" Style="{StaticResource SuccessButtonStyle}" Command="{Binding ApplyDidEditsCommand}"/>
+                                        <Button Content="Delete DID" Style="{StaticResource DangerButtonStyle}" Command="{Binding DeleteDidCommand}"/>
+
+                                        <Separator Width="10" Opacity="0"/>
+                                        <TextBlock Text="Assign DOP:" VerticalAlignment="Center" FontWeight="Bold" Foreground="#1B365D" Margin="0,0,4,0"/>
+                                        <ComboBox ItemsSource="{Binding AvailableDops}"
+                                                  SelectedItem="{Binding EditDidSelectedDop, Mode=TwoWay}"
+                                                  DisplayMemberPath="DisplayLabel"
+                                                  Width="240" Height="22" Margin="0,0,4,0"/>
+                                        <Button Content="Assign DOP to DID" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding AssignDopToDidCommand}"/>
+
+                                        <Separator Width="10" Opacity="0"/>
+                                        <TextBlock Text="Filter:" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,4,0"/>
+                                        <TextBox Text="{Binding DidSearchText, UpdateSourceTrigger=PropertyChanged}" Width="140" Height="22" VerticalContentAlignment="Center" Padding="4,0"/>
+                                    </WrapPanel>
+                                </Border>
+
+                                <!-- Bottom DID Editor Form -->
+                                <Border DockPanel.Dock="Bottom" Background="#F8FAFC" BorderBrush="#BFC9CA" BorderThickness="0,1,0,0" Padding="10,8">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="DID AUTHORING &amp; DOP ASSIGNMENT INSPECTOR" FontWeight="Bold" Foreground="#1B365D" FontSize="11"/>
+                                            <CheckBox Grid.Column="1" Content="Auto-create / sync UDS 0x22 Read &amp; 0x2E Write Services" IsChecked="{Binding AutoSyncDidServices, Mode=TwoWay}" FontSize="11"/>
+                                        </Grid>
+
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="90"/>
+                                                <ColumnDefinition Width="110"/>
+                                                <ColumnDefinition Width="85"/>
+                                                <ColumnDefinition Width="185"/>
+                                                <ColumnDefinition Width="80"/>
+                                                <ColumnDefinition Width="115"/>
+                                                <ColumnDefinition Width="70"/>
+                                                <ColumnDefinition Width="115"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="28"/>
+                                                <RowDefinition Height="28"/>
+                                            </Grid.RowDefinitions>
+
+                                            <TextBlock Grid.Row="0" Grid.Column="0" Text="DID (Hex):" VerticalAlignment="Center" FontWeight="Bold"/>
+                                            <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding EditDidHex, UpdateSourceTrigger=PropertyChanged}" Margin="2,3" VerticalContentAlignment="Center" FontFamily="Consolas"/>
+
+                                            <TextBlock Grid.Row="0" Grid.Column="2" Text="DID Name:" VerticalAlignment="Center" FontWeight="Bold" Margin="8,0,0,0"/>
+                                            <TextBox Grid.Row="0" Grid.Column="3" Text="{Binding EditDidName, UpdateSourceTrigger=PropertyChanged}" Margin="2,3" VerticalContentAlignment="Center"/>
+
+                                            <TextBlock Grid.Row="0" Grid.Column="4" Text="Category:" VerticalAlignment="Center" FontWeight="Bold" Margin="8,0,0,0"/>
+                                            <ComboBox Grid.Row="0" Grid.Column="5" ItemsSource="{Binding DataCategoryOptions}" SelectedItem="{Binding EditDidCategory, Mode=TwoWay}" Margin="2,3"/>
+
+                                            <TextBlock Grid.Row="0" Grid.Column="6" Text="Access:" VerticalAlignment="Center" FontWeight="Bold" Margin="8,0,0,0"/>
+                                            <ComboBox Grid.Row="0" Grid.Column="7" ItemsSource="{Binding DidAccessOptions}" SelectedItem="{Binding EditDidAccess, Mode=TwoWay}" Margin="2,3"/>
+
+                                            <StackPanel Grid.Row="0" Grid.Column="8" Orientation="Horizontal" Margin="8,2">
+                                                <TextBlock Text="Bytes:" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,4,0"/>
+                                                <TextBox Text="{Binding EditDidByteLength, UpdateSourceTrigger=LostFocus}" Width="45" VerticalContentAlignment="Center" Margin="0,0,8,0"/>
+                                                <TextBlock Text="Unit:" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,4,0"/>
+                                                <TextBox Text="{Binding EditDidUnit, UpdateSourceTrigger=PropertyChanged}" Width="65" VerticalContentAlignment="Center"/>
+                                            </StackPanel>
+
+                                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Assign DOP:" VerticalAlignment="Center" FontWeight="Bold"/>
+                                            <ComboBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3" ItemsSource="{Binding AvailableDops}" SelectedItem="{Binding EditDidSelectedDop, Mode=TwoWay}" DisplayMemberPath="DisplayLabel" Margin="2,3"/>
+
+                                            <TextBlock Grid.Row="1" Grid.Column="4" Text="Data Type:" VerticalAlignment="Center" FontWeight="Bold" Margin="8,0,0,0"/>
+                                            <ComboBox Grid.Row="1" Grid.Column="5" ItemsSource="{Binding BaseDataTypeOptions}" SelectedItem="{Binding EditDidDataType, Mode=TwoWay}" IsEditable="True" Margin="2,3"/>
+
+                                            <TextBlock Grid.Row="1" Grid.Column="6" Text="Factor:" VerticalAlignment="Center" FontWeight="Bold" Margin="8,0,0,0"/>
+                                            <TextBox Grid.Row="1" Grid.Column="7" Text="{Binding EditDidScalingFactor, UpdateSourceTrigger=LostFocus}" Margin="2,3" VerticalContentAlignment="Center"/>
+
+                                            <StackPanel Grid.Row="1" Grid.Column="8" Orientation="Horizontal" Margin="8,2">
+                                                <TextBlock Text="Offset:" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,4,0"/>
+                                                <TextBox Text="{Binding EditDidOffset, UpdateSourceTrigger=LostFocus}" Width="55" VerticalContentAlignment="Center" Margin="0,0,8,0"/>
+                                                <TextBlock Text="Desc:" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,4,0"/>
+                                                <TextBox Text="{Binding EditDidDescription, UpdateSourceTrigger=PropertyChanged}" Width="140" VerticalContentAlignment="Center"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Editable DID DataGrid -->
+                                <DataGrid ItemsSource="{Binding LayerDids}"
+                                          SelectedItem="{Binding SelectedDid, Mode=TwoWay}"
+                                          AutoGenerateColumns="False"
+                                          IsReadOnly="False"
+                                          CanUserAddRows="False"
+                                          CanUserDeleteRows="False"
+                                          ColumnHeaderStyle="{StaticResource ModernDataGridHeaderStyle}"
+                                          RowHeight="26">
+                                    <DataGrid.Columns>
+                                        <DataGridTemplateColumn Header="Category" Width="105" CellStyle="{StaticResource FastComboCellStyle}">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding DataCategory}" VerticalAlignment="Center"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                            <DataGridTemplateColumn.CellEditingTemplate>
+                                                <DataTemplate>
+                                                    <ComboBox ItemsSource="{Binding DataContext.DataCategoryOptions, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                              SelectedItem="{Binding DataCategory, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                              Height="22"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellEditingTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTextColumn Header="DID (Hex)" Binding="{Binding DidHex}" Width="75"/>
+                                        <DataGridTextColumn Header="DID Name" Binding="{Binding ShortName}" Width="185"/>
+                                        <DataGridTemplateColumn Header="Assigned DOP" Width="170" CellStyle="{StaticResource FastComboCellStyle}">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding DopRef}" VerticalAlignment="Center" Foreground="#1B365D"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                            <DataGridTemplateColumn.CellEditingTemplate>
+                                                <DataTemplate>
+                                                    <ComboBox ItemsSource="{Binding DataContext.AvailableDops, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                              SelectedValue="{Binding DopRef, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                              SelectedValuePath="Id"
+                                                              DisplayMemberPath="DisplayLabel"
+                                                              Height="22"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellEditingTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTemplateColumn Header="Access" Width="95" CellStyle="{StaticResource FastComboCellStyle}">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Access}" VerticalAlignment="Center"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                            <DataGridTemplateColumn.CellEditingTemplate>
+                                                <DataTemplate>
+                                                    <ComboBox ItemsSource="{Binding DataContext.DidAccessOptions, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                              SelectedItem="{Binding Access, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                              Height="22"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellEditingTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTextColumn Header="Len (B)" Binding="{Binding ByteLength}" Width="55"/>
+                                        <DataGridTextColumn Header="Data Type" Binding="{Binding DataType}" Width="100"/>
+                                        <DataGridTextColumn Header="Unit" Binding="{Binding Unit}" Width="60"/>
+                                        <DataGridTextColumn Header="Factor" Binding="{Binding ScalingFactor}" Width="60"/>
+                                        <DataGridTextColumn Header="Offset" Binding="{Binding Offset}" Width="60"/>
+                                        <DataGridTextColumn Header="ISO Scope" Binding="{Binding InheritanceScope}" IsReadOnly="True" Width="140"/>
+                                        <DataGridTextColumn Header="Associated Service" Binding="{Binding AssociatedService}" IsReadOnly="True" Width="*"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </DockPanel>
+                        </TabItem>
+
+                        <!-- TAB 3: DATA OBJECT PROPERTIES (DOPS) - CREATE / EDIT / DELETE / ASSIGN -->
+                        <TabItem Header="Data Object Props (DOPs)">
+                            <DockPanel>
+                                <Border DockPanel.Dock="Top" Background="#F4F6F9" BorderBrush="#D5D8DC" BorderThickness="0,0,0,1" Padding="6,5">
+                                    <WrapPanel Orientation="Horizontal">
+                                        <Button Content="+ Create DOP" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding CreateDopCommand}"/>
+                                        <Button Content="Apply DOP Edits" Style="{StaticResource SuccessButtonStyle}" Command="{Binding ApplyDopEditsCommand}"/>
+                                        <Button Content="Delete DOP" Style="{StaticResource DangerButtonStyle}" Command="{Binding DeleteDopCommand}"/>
+                                        <Separator Width="10" Opacity="0"/>
+                                        <Button Content="Assign Selected DOP -> Active DID" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding AssignSelectedDopRowToDidCommand}"/>
+                                        <Separator Width="12" Opacity="0"/>
+                                        <TextBlock Text="Filter DOPs:" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,4,0"/>
+                                        <TextBox Text="{Binding DopSearchText, UpdateSourceTrigger=PropertyChanged}" Width="160" Height="22" VerticalContentAlignment="Center" Padding="4,0"/>
+                                    </WrapPanel>
+                                </Border>
+
+                                <!-- Bottom DOP Editor Card -->
+                                <Border DockPanel.Dock="Bottom" Background="#F8FAFC" BorderBrush="#BFC9CA" BorderThickness="0,1,0,0" Padding="10,8">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="75"/>
+                                            <ColumnDefinition Width="150"/>
+                                            <ColumnDefinition Width="85"/>
+                                            <ColumnDefinition Width="155"/>
+                                            <ColumnDefinition Width="80"/>
+                                            <ColumnDefinition Width="110"/>
+                                            <ColumnDefinition Width="85"/>
+                                            <ColumnDefinition Width="125"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="28"/>
+                                            <RowDefinition Height="28"/>
+                                        </Grid.RowDefinitions>
+
+                                        <TextBlock Grid.Row="0" Grid.Column="0" Text="DOP ID:" VerticalAlignment="Center" FontWeight="Bold"/>
+                                        <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding EditDopId, UpdateSourceTrigger=PropertyChanged}" Margin="2,3" VerticalContentAlignment="Center"/>
+
+                                        <TextBlock Grid.Row="0" Grid.Column="2" Text="Short Name:" VerticalAlignment="Center" FontWeight="Bold" Margin="8,0,0,0"/>
+                                        <TextBox Grid.Row="0" Grid.Column="3" Text="{Binding EditDopShortName, UpdateSourceTrigger=PropertyChanged}" Margin="2,3" VerticalContentAlignment="Center"/>
+
+                                        <TextBlock Grid.Row="0" Grid.Column="4" Text="Category:" VerticalAlignment="Center" FontWeight="Bold" Margin="8,0,0,0"/>
+                                        <ComboBox Grid.Row="0" Grid.Column="5" ItemsSource="{Binding DopCategoryOptions}" SelectedItem="{Binding EditDopCategory, Mode=TwoWay}" Margin="2,3"/>
+
+                                        <TextBlock Grid.Row="0" Grid.Column="6" Text="Base Type:" VerticalAlignment="Center" FontWeight="Bold" Margin="8,0,0,0"/>
+                                        <ComboBox Grid.Row="0" Grid.Column="7" ItemsSource="{Binding BaseDataTypeOptions}" SelectedItem="{Binding EditDopBaseDataType, Mode=TwoWay}" Margin="2,3"/>
+
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Bit Length:" VerticalAlignment="Center" FontWeight="Bold"/>
+                                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding EditDopBitLength, UpdateSourceTrigger=LostFocus}" Margin="2,3" VerticalContentAlignment="Center"/>
+
+                                        <TextBlock Grid.Row="1" Grid.Column="2" Text="Phys Unit:" VerticalAlignment="Center" FontWeight="Bold" Margin="8,0,0,0"/>
+                                        <TextBox Grid.Row="1" Grid.Column="3" Text="{Binding EditDopPhysicalUnit, UpdateSourceTrigger=PropertyChanged}" Margin="2,3" VerticalContentAlignment="Center"/>
+
+                                        <TextBlock Grid.Row="1" Grid.Column="4" Text="Factor:" VerticalAlignment="Center" FontWeight="Bold" Margin="8,0,0,0"/>
+                                        <TextBox Grid.Row="1" Grid.Column="5" Text="{Binding EditDopFactor, UpdateSourceTrigger=LostFocus}" Margin="2,3" VerticalContentAlignment="Center"/>
+
+                                        <TextBlock Grid.Row="1" Grid.Column="6" Text="Offset:" VerticalAlignment="Center" FontWeight="Bold" Margin="8,0,0,0"/>
+                                        <TextBox Grid.Row="1" Grid.Column="7" Text="{Binding EditDopOffset, UpdateSourceTrigger=LostFocus}" Margin="2,3" VerticalContentAlignment="Center"/>
+                                    </Grid>
+                                </Border>
+
+                                <DataGrid ItemsSource="{Binding AvailableDops}"
+                                          SelectedItem="{Binding SelectedDop, Mode=TwoWay}"
+                                          AutoGenerateColumns="False"
+                                          IsReadOnly="False"
+                                          CanUserAddRows="False"
+                                          ColumnHeaderStyle="{StaticResource ModernDataGridHeaderStyle}"
+                                          RowHeight="24">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="DOP ID" Binding="{Binding Id}" Width="165"/>
+                                        <DataGridTextColumn Header="Short Name" Binding="{Binding ShortName}" Width="170"/>
+                                        <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="95"/>
+                                        <DataGridTextColumn Header="Base Data Type" Binding="{Binding BaseDataType}" Width="120"/>
+                                        <DataGridTextColumn Header="Bit Length" Binding="{Binding BitLength}" Width="75"/>
+                                        <DataGridTextColumn Header="Unit" Binding="{Binding PhysicalUnit}" Width="80"/>
+                                        <DataGridTextColumn Header="Factor" Binding="{Binding Factor}" Width="70"/>
+                                        <DataGridTextColumn Header="Offset" Binding="{Binding Offset}" Width="70"/>
+                                        <DataGridTextColumn Header="Origin Layer" Binding="{Binding InheritanceScope}" IsReadOnly="True" Width="*"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </DockPanel>
+                        </TabItem>
+
+                        <!-- TAB 4: SERVICE INSPECTOR (PROPORTIONAL GRID LAYOUT SO DATAGRID VIRTUALIZATION STAYS ACTIVE) -->
                         <TabItem Header="Service Inspector">
-                            <ScrollViewer VerticalScrollBarVisibility="Auto">
-                                <StackPanel Margin="12">
-                                    <TextBlock Text="SELECTED SERVICE SPECIFICATION" FontWeight="Bold" FontSize="12" Foreground="#1B365D" Margin="0,0,0,6"/>
-                                    
-                                    <Border Background="#F4F6F9" BorderBrush="#D5D8DC" BorderThickness="1" Padding="10" Margin="0,0,0,12">
+                            <Grid Margin="10">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <StackPanel Grid.Row="0">
+                                    <DockPanel Margin="0,0,0,6">
+                                        <TextBlock Text="EDIT SELECTED SERVICE SPECIFICATION" FontWeight="Bold" FontSize="12" Foreground="#1B365D" VerticalAlignment="Center"/>
+                                        <Button Content="Apply Service Changes" Style="{StaticResource SuccessButtonStyle}" Command="{Binding ApplyServiceEditsCommand}" HorizontalAlignment="Right"/>
+                                    </DockPanel>
+
+                                    <Border Background="#F4F6F9" BorderBrush="#D5D8DC" BorderThickness="1" Padding="10" Margin="0,0,0,8">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="130"/>
                                                 <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="130"/>
+                                                <ColumnDefinition Width="135"/>
                                                 <ColumnDefinition Width="*"/>
                                             </Grid.ColumnDefinitions>
                                             <Grid.RowDefinitions>
-                                                <RowDefinition Height="24"/>
-                                                <RowDefinition Height="24"/>
-                                                <RowDefinition Height="24"/>
+                                                <RowDefinition Height="28"/>
+                                                <RowDefinition Height="28"/>
+                                                <RowDefinition Height="28"/>
+                                                <RowDefinition Height="26"/>
                                             </Grid.RowDefinitions>
 
-                                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Service Name:" FontWeight="Bold"/>
-                                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SelectedService.ShortName}"/>
+                                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Service Name:" FontWeight="Bold" VerticalAlignment="Center"/>
+                                            <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding SelectedService.ShortName, UpdateSourceTrigger=LostFocus}" Margin="2,3" VerticalContentAlignment="Center"/>
 
-                                            <TextBlock Grid.Row="0" Grid.Column="2" Text="Service ID (SID):" FontWeight="Bold"/>
-                                            <TextBlock Grid.Row="0" Grid.Column="3" Text="{Binding SelectedService.ServiceIdHex}"/>
+                                            <TextBlock Grid.Row="0" Grid.Column="2" Text="Service ID (SID):" FontWeight="Bold" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                                            <TextBox Grid.Row="0" Grid.Column="3" Text="{Binding SelectedService.ServiceIdHex, UpdateSourceTrigger=LostFocus}" Margin="2,3" VerticalContentAlignment="Center"/>
 
-                                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Data Category:" FontWeight="Bold"/>
-                                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SelectedService.DataCategory}" FontWeight="Bold"/>
+                                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Data Category:" FontWeight="Bold" VerticalAlignment="Center"/>
+                                            <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding ServiceCategoryOptions}" SelectedItem="{Binding SelectedService.DataCategory, Mode=TwoWay}" Margin="2,3"/>
 
-                                            <TextBlock Grid.Row="1" Grid.Column="2" Text="Semantic:" FontWeight="Bold"/>
-                                            <TextBlock Grid.Row="1" Grid.Column="3" Text="{Binding SelectedService.Semantic}"/>
+                                            <TextBlock Grid.Row="1" Grid.Column="2" Text="Addressing Mode:" FontWeight="Bold" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                                            <ComboBox Grid.Row="1" Grid.Column="3" ItemsSource="{Binding AddressingOptions}" SelectedItem="{Binding SelectedService.Addressing, Mode=TwoWay}" Margin="2,3"/>
 
-                                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Sub-Function:" FontWeight="Bold"/>
-                                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SelectedService.SubFunctionHex}"/>
+                                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Semantic:" FontWeight="Bold" VerticalAlignment="Center"/>
+                                            <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding SelectedService.Semantic, UpdateSourceTrigger=LostFocus}" Margin="2,3" VerticalContentAlignment="Center"/>
 
-                                            <TextBlock Grid.Row="2" Grid.Column="2" Text="Pos Response SID:" FontWeight="Bold"/>
-                                            <TextBlock Grid.Row="2" Grid.Column="3" Text="{Binding SelectedService.PositiveResponseSidHex}"/>
+                                            <TextBlock Grid.Row="2" Grid.Column="2" Text="Sub-Function:" FontWeight="Bold" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                                            <TextBox Grid.Row="2" Grid.Column="3" Text="{Binding SelectedService.SubFunctionHex, UpdateSourceTrigger=LostFocus}" Margin="2,3" VerticalContentAlignment="Center"/>
+
+                                            <TextBlock Grid.Row="3" Grid.Column="0" Text="TX Request PDU:" FontWeight="Bold" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding SelectedServiceRequestPreview}" Foreground="#0066CC" FontFamily="Consolas" VerticalAlignment="Center"/>
+
+                                            <TextBlock Grid.Row="3" Grid.Column="2" Text="RX Pos Response PDU:" FontWeight="Bold" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                                            <TextBlock Grid.Row="3" Grid.Column="3" Text="{Binding SelectedServiceResponsePreview}" Foreground="#0E6655" FontFamily="Consolas" VerticalAlignment="Center"/>
                                         </Grid>
                                     </Border>
 
-                                    <!-- Request Parameters -->
-                                    <TextBlock Text="Request Parameters Structure" FontWeight="Bold" Foreground="#1B365D" Margin="0,6,0,4"/>
-                                    <DataGrid ItemsSource="{Binding SelectedService.RequestParameters}" 
-                                              AutoGenerateColumns="False" 
-                                              IsReadOnly="True" 
-                                              MaxHeight="180"
-                                              ColumnHeaderStyle="{StaticResource ModernDataGridHeaderStyle}">
-                                        <DataGrid.Columns>
-                                            <DataGridTextColumn Header="Byte Pos" Binding="{Binding BytePosition}" Width="70"/>
-                                            <DataGridTextColumn Header="Parameter Name" Binding="{Binding Name}" Width="200"/>
-                                            <DataGridTextColumn Header="Semantic" Binding="{Binding Semantic}" Width="120"/>
-                                            <DataGridTextColumn Header="Type" Binding="{Binding ParameterType}" Width="120"/>
-                                            <DataGridTextColumn Header="Default Hex" Binding="{Binding DefaultValueHex}" Width="100"/>
-                                            <DataGridTextColumn Header="DOP Ref" Binding="{Binding DopRef}" Width="*"/>
-                                        </DataGrid.Columns>
-                                    </DataGrid>
-
-                                    <!-- Positive Response Parameters -->
-                                    <TextBlock Text="Positive Response Parameters Structure" FontWeight="Bold" Foreground="#1B365D" Margin="0,12,0,4"/>
-                                    <DataGrid ItemsSource="{Binding SelectedService.ResponseParameters}" 
-                                              AutoGenerateColumns="False" 
-                                              IsReadOnly="True" 
-                                              MaxHeight="180"
-                                              ColumnHeaderStyle="{StaticResource ModernDataGridHeaderStyle}">
-                                        <DataGrid.Columns>
-                                            <DataGridTextColumn Header="Byte Pos" Binding="{Binding BytePosition}" Width="70"/>
-                                            <DataGridTextColumn Header="Parameter Name" Binding="{Binding Name}" Width="200"/>
-                                            <DataGridTextColumn Header="Semantic" Binding="{Binding Semantic}" Width="120"/>
-                                            <DataGridTextColumn Header="Bit Length" Binding="{Binding BitLength}" Width="80"/>
-                                            <DataGridTextColumn Header="Type" Binding="{Binding ParameterType}" Width="120"/>
-                                            <DataGridTextColumn Header="DOP Ref" Binding="{Binding DopRef}" Width="*"/>
-                                        </DataGrid.Columns>
-                                    </DataGrid>
+                                    <Border Background="#EAF2F8" BorderBrush="#AED6F1" BorderThickness="1" Padding="6,4" Margin="0,0,0,6">
+                                        <WrapPanel Orientation="Horizontal">
+                                            <TextBlock Text="Assign DOP to Selected Param:" FontWeight="Bold" Foreground="#1B365D" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                            <ComboBox ItemsSource="{Binding AvailableDops}" SelectedItem="{Binding SelectedParamAssignDop, Mode=TwoWay}" DisplayMemberPath="DisplayLabel" Width="250" Height="22" Margin="0,0,6,0"/>
+                                            <Button Content="Assign -> Req Param" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding AssignDopToRequestParamCommand}"/>
+                                            <Button Content="Assign -> Resp Param" Style="{StaticResource SuccessButtonStyle}" Command="{Binding AssignDopToResponseParamCommand}"/>
+                                        </WrapPanel>
+                                    </Border>
                                 </StackPanel>
-                            </ScrollViewer>
+
+                                <DockPanel Grid.Row="1" Margin="0,4,0,4">
+                                    <TextBlock Text="Request Parameters Structure (Editable)" FontWeight="Bold" Foreground="#1B365D" VerticalAlignment="Center"/>
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                        <Button Content="+ Add Req Param" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding AddRequestParamCommand}"/>
+                                        <Button Content="Delete Req Param" Style="{StaticResource DangerButtonStyle}" Command="{Binding DeleteRequestParamCommand}"/>
+                                    </StackPanel>
+                                </DockPanel>
+
+                                <DataGrid Grid.Row="2" ItemsSource="{Binding ServiceRequestParams}" SelectedItem="{Binding SelectedRequestParam, Mode=TwoWay}"
+                                          AutoGenerateColumns="False" IsReadOnly="False" CanUserAddRows="False"
+                                          ColumnHeaderStyle="{StaticResource ModernDataGridHeaderStyle}" RowHeight="24">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Byte Pos" Binding="{Binding BytePosition}" Width="65"/>
+                                        <DataGridTextColumn Header="Parameter Name" Binding="{Binding Name}" Width="175"/>
+                                        <DataGridTextColumn Header="Semantic" Binding="{Binding Semantic}" Width="115"/>
+                                        <DataGridTemplateColumn Header="Type" Width="135" CellStyle="{StaticResource FastComboCellStyle}">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding ParameterType}" VerticalAlignment="Center"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                            <DataGridTemplateColumn.CellEditingTemplate>
+                                                <DataTemplate>
+                                                    <ComboBox ItemsSource="{Binding DataContext.ParamTypeOptions, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                              SelectedItem="{Binding ParameterType, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                              Height="22"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellEditingTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTextColumn Header="Default Hex" Binding="{Binding DefaultValueHex}" Width="90"/>
+                                        <DataGridTextColumn Header="Bit Len" Binding="{Binding BitLength}" Width="60"/>
+                                        <DataGridTextColumn Header="DOP Ref" Binding="{Binding DopRef}" Width="*"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+
+                                <DockPanel Grid.Row="3" Margin="0,8,0,4">
+                                    <TextBlock Text="Positive Response Parameters Structure (Editable)" FontWeight="Bold" Foreground="#1B365D" VerticalAlignment="Center"/>
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                        <Button Content="+ Add Resp Param" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding AddResponseParamCommand}"/>
+                                        <Button Content="Delete Resp Param" Style="{StaticResource DangerButtonStyle}" Command="{Binding DeleteResponseParamCommand}"/>
+                                    </StackPanel>
+                                </DockPanel>
+
+                                <DataGrid Grid.Row="4" ItemsSource="{Binding ServiceResponseParams}" SelectedItem="{Binding SelectedResponseParam, Mode=TwoWay}"
+                                          AutoGenerateColumns="False" IsReadOnly="False" CanUserAddRows="False"
+                                          ColumnHeaderStyle="{StaticResource ModernDataGridHeaderStyle}" RowHeight="24">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Byte Pos" Binding="{Binding BytePosition}" Width="65"/>
+                                        <DataGridTextColumn Header="Parameter Name" Binding="{Binding Name}" Width="175"/>
+                                        <DataGridTextColumn Header="Semantic" Binding="{Binding Semantic}" Width="115"/>
+                                        <DataGridTemplateColumn Header="Type" Width="135" CellStyle="{StaticResource FastComboCellStyle}">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding ParameterType}" VerticalAlignment="Center"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                            <DataGridTemplateColumn.CellEditingTemplate>
+                                                <DataTemplate>
+                                                    <ComboBox ItemsSource="{Binding DataContext.ParamTypeOptions, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                              SelectedItem="{Binding ParameterType, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                              Height="22"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellEditingTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTextColumn Header="Default Hex" Binding="{Binding DefaultValueHex}" Width="90"/>
+                                        <DataGridTextColumn Header="Bit Len" Binding="{Binding BitLength}" Width="60"/>
+                                        <DataGridTextColumn Header="DOP Ref" Binding="{Binding DopRef}" Width="*"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+
+                                <StackPanel Grid.Row="5" Margin="0,8,0,0">
+                                    <TextBlock Text="Negative Response Codes (NRCs - comma separated, e.g. '0x12 SubFunctionNotSupported, 0x31 RequestOutOfRange')" FontWeight="Bold" Foreground="#1B365D" Margin="0,0,0,4"/>
+                                    <TextBox Text="{Binding EditServiceNrcsText, UpdateSourceTrigger=PropertyChanged}" Height="26" VerticalContentAlignment="Center" Padding="6,0"/>
+                                </StackPanel>
+                            </Grid>
                         </TabItem>
 
-                        <!-- TAB 3: DATA IDENTIFIERS (DIDS) -->
-                        <TabItem Header="Data Identifiers (DIDs)">
-                            <DataGrid ItemsSource="{Binding LayerDids}" 
-                                      AutoGenerateColumns="False" 
-                                      IsReadOnly="True" 
-                                      CanUserAddRows="False"
-                                      ColumnHeaderStyle="{StaticResource ModernDataGridHeaderStyle}"
-                                      RowHeight="24">
-                                <DataGrid.Columns>
-                                    <DataGridTextColumn Header="Category" Binding="{Binding DataCategory}" Width="100"/>
-                                    <DataGridTextColumn Header="DID (Hex)" Binding="{Binding DidHex}" Width="80">
-                                        <DataGridTextColumn.ElementStyle>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="HorizontalAlignment" Value="Center"/>
-                                                <Setter Property="FontWeight" Value="Bold"/>
-                                            </Style>
-                                        </DataGridTextColumn.ElementStyle>
-                                    </DataGridTextColumn>
-                                    <DataGridTextColumn Header="DID (Dec)" Binding="{Binding DidDecimal}" Width="80"/>
-                                    <DataGridTextColumn Header="DID Name" Binding="{Binding ShortName}" Width="220"/>
-                                    <DataGridTextColumn Header="Access" Binding="{Binding Access}" Width="90"/>
-                                    <DataGridTextColumn Header="Len (B)" Binding="{Binding ByteLength}" Width="70"/>
-                                    <DataGridTextColumn Header="Data Type" Binding="{Binding DataType}" Width="120"/>
-                                    <DataGridTextColumn Header="Unit" Binding="{Binding Unit}" Width="70"/>
-                                    <DataGridTextColumn Header="Factor" Binding="{Binding ScalingFactor}" Width="70"/>
-                                    <DataGridTextColumn Header="Offset" Binding="{Binding Offset}" Width="70"/>
-                                    <DataGridTextColumn Header="Associated Service" Binding="{Binding AssociatedService}" Width="*"/>
-                                </DataGrid.Columns>
-                            </DataGrid>
-                        </TabItem>
-
-                        <!-- TAB 4: TROUBLE CODES (DTCS) -->
+                        <!-- TAB 5: TROUBLE CODES (DTCS) - EDITABLE -->
                         <TabItem Header="Trouble Codes (DTCs)">
-                            <DataGrid ItemsSource="{Binding LayerDtcs}" 
-                                      AutoGenerateColumns="False" 
-                                      IsReadOnly="True" 
-                                      CanUserAddRows="False"
-                                      ColumnHeaderStyle="{StaticResource ModernDataGridHeaderStyle}"
-                                      RowHeight="24">
-                                <DataGrid.Columns>
-                                    <DataGridTextColumn Header="Display Code" Binding="{Binding DisplayCode}" Width="110">
-                                        <DataGridTextColumn.ElementStyle>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="FontWeight" Value="Bold"/>
-                                                <Setter Property="Foreground" Value="#C0392B"/>
-                                            </Style>
-                                        </DataGridTextColumn.ElementStyle>
-                                    </DataGridTextColumn>
-                                    <DataGridTextColumn Header="Hex Code" Binding="{Binding TroubleCodeHex}" Width="100"/>
-                                    <DataGridTextColumn Header="FTB" Binding="{Binding FailureTypeByte}" Width="70"/>
-                                    <DataGridTextColumn Header="Severity" Binding="{Binding Severity}" Width="90"/>
-                                    <DataGridTextColumn Header="Fault Description" Binding="{Binding Description}" Width="*"/>
-                                </DataGrid.Columns>
-                            </DataGrid>
+                            <DockPanel>
+                                <Border DockPanel.Dock="Top" Background="#F4F6F9" BorderBrush="#D5D8DC" BorderThickness="0,0,0,1" Padding="6,5">
+                                    <WrapPanel Orientation="Horizontal">
+                                        <Button Content="+ Create DTC" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding CreateDtcCommand}"/>
+                                        <Button Content="Apply DTC Edits" Style="{StaticResource SuccessButtonStyle}" Command="{Binding ApplyDtcEditsCommand}"/>
+                                        <Button Content="Delete DTC" Style="{StaticResource DangerButtonStyle}" Command="{Binding DeleteDtcCommand}"/>
+                                        <Separator Width="10" Opacity="0"/>
+                                        <TextBlock Text="Hex (3B):" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,4,0"/>
+                                        <TextBox Text="{Binding EditDtcHex, UpdateSourceTrigger=PropertyChanged}" Width="85" Height="22" Margin="0,0,8,0"/>
+                                        <TextBlock Text="Display:" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,4,0"/>
+                                        <TextBox Text="{Binding EditDtcDisplayCode, UpdateSourceTrigger=PropertyChanged}" Width="85" Height="22" Margin="0,0,8,0"/>
+                                        <TextBlock Text="Severity:" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,4,0"/>
+                                        <ComboBox ItemsSource="{Binding DtcSeverityOptions}" SelectedItem="{Binding EditDtcSeverity, Mode=TwoWay}" Width="95" Height="22" Margin="0,0,8,0"/>
+                                        <TextBlock Text="Description:" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,4,0"/>
+                                        <TextBox Text="{Binding EditDtcDescription, UpdateSourceTrigger=PropertyChanged}" Width="210" Height="22"/>
+                                    </WrapPanel>
+                                </Border>
+
+                                <DataGrid ItemsSource="{Binding LayerDtcs}" SelectedItem="{Binding SelectedDtc, Mode=TwoWay}"
+                                          AutoGenerateColumns="False" IsReadOnly="False" CanUserAddRows="False"
+                                          ColumnHeaderStyle="{StaticResource ModernDataGridHeaderStyle}" RowHeight="26">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Display Code" Binding="{Binding DisplayCode}" Width="100"/>
+                                        <DataGridTextColumn Header="Hex Code" Binding="{Binding TroubleCodeHex}" Width="90"/>
+                                        <DataGridTextColumn Header="FTB" Binding="{Binding FailureTypeByte}" Width="60"/>
+                                        <DataGridTemplateColumn Header="Severity" Width="100" CellStyle="{StaticResource FastComboCellStyle}">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Severity}" VerticalAlignment="Center"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                            <DataGridTemplateColumn.CellEditingTemplate>
+                                                <DataTemplate>
+                                                    <ComboBox ItemsSource="{Binding DataContext.DtcSeverityOptions, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                              SelectedItem="{Binding Severity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                              Height="22"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellEditingTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTextColumn Header="ISO Scope" Binding="{Binding InheritanceScope}" IsReadOnly="True" Width="160"/>
+                                        <DataGridTextColumn Header="Fault Description" Binding="{Binding Description}" Width="*"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </DockPanel>
                         </TabItem>
 
-                        <!-- TAB 5: PROTOCOLS & BUS TIMINGS -->
-                        <TabItem Header="Protocols &amp; Timings">
-                            <DataGrid ItemsSource="{Binding LayerComParams}" 
-                                      AutoGenerateColumns="False" 
-                                      IsReadOnly="True" 
-                                      CanUserAddRows="False"
-                                      ColumnHeaderStyle="{StaticResource ModernDataGridHeaderStyle}"
-                                      RowHeight="24">
-                                <DataGrid.Columns>
-                                    <DataGridTextColumn Header="Parameter Name" Binding="{Binding Name}" Width="240"/>
-                                    <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="150"/>
-                                    <DataGridTextColumn Header="Unit" Binding="{Binding Unit}" Width="90"/>
-                                    <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*"/>
-                                </DataGrid.Columns>
-                            </DataGrid>
+                        <!-- TAB 6: PROTOCOLS & BUS TIMINGS (ODX-C) - EDITABLE -->
+                        <TabItem Header="Protocols &amp; ComParams (ODX-C)">
+                            <DockPanel>
+                                <Border DockPanel.Dock="Top" Background="#F4F6F9" BorderBrush="#D5D8DC" BorderThickness="0,0,0,1" Padding="6,5">
+                                    <WrapPanel Orientation="Horizontal">
+                                        <Button Content="+ Add ComParam" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding CreateComParamCommand}"/>
+                                        <Button Content="Apply ComParam" Style="{StaticResource SuccessButtonStyle}" Command="{Binding ApplyComParamEditsCommand}"/>
+                                        <Button Content="Delete ComParam" Style="{StaticResource DangerButtonStyle}" Command="{Binding DeleteComParamCommand}"/>
+                                        <Separator Width="10" Opacity="0"/>
+                                        <TextBlock Text="Name:" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,4,0"/>
+                                        <TextBox Text="{Binding EditComParamName, UpdateSourceTrigger=PropertyChanged}" Width="135" Height="22" Margin="0,0,8,0"/>
+                                        <TextBlock Text="Value:" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,4,0"/>
+                                        <TextBox Text="{Binding EditComParamValue, UpdateSourceTrigger=PropertyChanged}" Width="80" Height="22" Margin="0,0,8,0"/>
+                                        <TextBlock Text="Unit:" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,4,0"/>
+                                        <TextBox Text="{Binding EditComParamUnit, UpdateSourceTrigger=PropertyChanged}" Width="60" Height="22" Margin="0,0,8,0"/>
+                                        <TextBlock Text="Desc:" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,4,0"/>
+                                        <TextBox Text="{Binding EditComParamDesc, UpdateSourceTrigger=PropertyChanged}" Width="160" Height="22"/>
+                                    </WrapPanel>
+                                </Border>
+
+                                <DataGrid ItemsSource="{Binding LayerComParams}" SelectedItem="{Binding SelectedComParam, Mode=TwoWay}"
+                                          AutoGenerateColumns="False" IsReadOnly="False" CanUserAddRows="False"
+                                          ColumnHeaderStyle="{StaticResource ModernDataGridHeaderStyle}" RowHeight="24">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Parameter Name" Binding="{Binding Name}" Width="200"/>
+                                        <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="110"/>
+                                        <DataGridTextColumn Header="Unit" Binding="{Binding Unit}" Width="70"/>
+                                        <DataGridTextColumn Header="Protocol" Binding="{Binding Protocol}" Width="140"/>
+                                        <DataGridTextColumn Header="ISO Origin / Scope" Binding="{Binding InheritanceScope}" IsReadOnly="True" Width="170"/>
+                                        <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </DockPanel>
                         </TabItem>
 
-                        <!-- TAB 6: PACKAGE METADATA -->
-                        <TabItem Header="Package Metadata">
-                            <DataGrid ItemsSource="{Binding PackageMetadata}" 
-                                      AutoGenerateColumns="False" 
-                                      IsReadOnly="True" 
-                                      CanUserAddRows="False"
-                                      ColumnHeaderStyle="{StaticResource ModernDataGridHeaderStyle}"
-                                      RowHeight="24">
-                                <DataGrid.Columns>
-                                    <DataGridTextColumn Header="Property" Binding="{Binding Key}" Width="220" FontWeight="Bold"/>
-                                    <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="*"/>
-                                </DataGrid.Columns>
-                            </DataGrid>
+                        <!-- TAB 7: ISO 22901 CONNECTIONS, TOPOLOGY & LAYER AUTHORING (VIRTUALIZED STAR GRID) -->
+                        <TabItem Header="ISO Connections &amp; Topology">
+                            <Grid Margin="10">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="1.2*"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- Layer Creation Bar -->
+                                <Border Grid.Row="0" Background="#EAF2F8" BorderBrush="#AED6F1" BorderThickness="1" CornerRadius="3" Padding="8" Margin="0,0,0,8">
+                                    <WrapPanel Orientation="Horizontal">
+                                        <TextBlock Text="New Layer Name:" VerticalAlignment="Center" FontWeight="Bold" Foreground="#1B365D" Margin="0,0,6,0"/>
+                                        <TextBox Text="{Binding NewEcuLayerName, UpdateSourceTrigger=PropertyChanged}" Width="170" Height="22" VerticalContentAlignment="Center" Margin="0,0,8,0"/>
+                                        <Button Content="+ Add ECU Variant" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding AddEcuVariantCommand}"/>
+                                        <Button Content="+ Add Base Variant" Style="{StaticResource SuccessButtonStyle}" Command="{Binding AddBaseVariantCommand}"/>
+                                        <Button Content="Delete Active Layer" Style="{StaticResource DangerButtonStyle}" Command="{Binding DeleteActiveLayerCommand}"/>
+                                    </WrapPanel>
+                                </Border>
+
+                                <!-- 1. PARENT-REFS Inheritance Connection Authoring -->
+                                <DockPanel Grid.Row="1" Margin="0,2,0,4">
+                                    <TextBlock Text="1. ISO 22901-1 Layer Inheritance Connections (PARENT-REFS)" FontWeight="Bold" Foreground="#1B365D" VerticalAlignment="Center"/>
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                        <ComboBox ItemsSource="{Binding AvailableTargetLayers}" SelectedItem="{Binding SelectedParentTargetLayer, Mode=TwoWay}" DisplayMemberPath="ShortName" Width="160" Height="22" Margin="0,0,4,0"/>
+                                        <ComboBox ItemsSource="{Binding ParentRefTypeOptions}" SelectedItem="{Binding SelectedParentRefType, Mode=TwoWay}" Width="145" Height="22" Margin="0,0,4,0"/>
+                                        <Button Content="+ Link Parent Layer" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding AddParentRefConnectionCommand}"/>
+                                        <Button Content="Unlink Selected" Style="{StaticResource DangerButtonStyle}" Command="{Binding RemoveParentRefConnectionCommand}"/>
+                                    </StackPanel>
+                                </DockPanel>
+                                <DataGrid Grid.Row="2" ItemsSource="{Binding IsoConnections}" SelectedItem="{Binding SelectedIsoConnection, Mode=TwoWay}"
+                                          AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False"
+                                          ColumnHeaderStyle="{StaticResource ModernDataGridHeaderStyle}" RowHeight="23" Margin="0,0,0,8">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Child / Source Layer" Binding="{Binding SourceLayer}" Width="180"/>
+                                        <DataGridTextColumn Header="Source Type" Binding="{Binding SourceType}" Width="115"/>
+                                        <DataGridTextColumn Header="PARENT-REF Role" Binding="{Binding RelationType}" Width="150"/>
+                                        <DataGridTextColumn Header="Target Parent Layer" Binding="{Binding TargetLayer}" Width="165"/>
+                                        <DataGridTextColumn Header="Target Type" Binding="{Binding TargetType}" Width="105"/>
+                                        <DataGridTextColumn Header="DOCREF Container" Binding="{Binding DocRefContainer}" Width="130"/>
+                                        <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="130"/>
+                                        <DataGridTextColumn Header="Excluded" Binding="{Binding ExcludedItems}" Width="*"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+
+                                <!-- 2. ODX-V Vehicle Logical Links -->
+                                <TextBlock Grid.Row="3" Text="2. ISO 22901-1 Vehicle Topology &amp; Logical Links (ODX-V)" FontWeight="Bold" Foreground="#1B365D" Margin="0,2,0,4"/>
+                                <DataGrid Grid.Row="4" ItemsSource="{Binding LogicalLinksView}"
+                                          AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False"
+                                          ColumnHeaderStyle="{StaticResource ModernDataGridHeaderStyle}" RowHeight="23" Margin="0,0,0,8">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Vehicle Model" Binding="{Binding VehicleModel}" Width="140"/>
+                                        <DataGridTextColumn Header="Logical Link" Binding="{Binding LogicalLinkName}" Width="140"/>
+                                        <DataGridTextColumn Header="Role" Binding="{Binding Role}" Width="150"/>
+                                        <DataGridTextColumn Header="Physical Bus" Binding="{Binding PhysicalBus}" Width="130"/>
+                                        <DataGridTextColumn Header="Protocol" Binding="{Binding Protocol}" Width="115"/>
+                                        <DataGridTextColumn Header="BaseVariant" Binding="{Binding BaseVariant}" Width="150"/>
+                                        <DataGridTextColumn Header="FunctionalGroup" Binding="{Binding FunctionalGroup}" Width="115"/>
+                                        <DataGridTextColumn Header="Req ID" Binding="{Binding PhysicalReqId}" Width="70"/>
+                                        <DataGridTextColumn Header="Resp ID" Binding="{Binding PhysicalRespId}" Width="70"/>
+                                        <DataGridTextColumn Header="Func ID" Binding="{Binding FunctionalReqId}" Width="*"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+
+                                <!-- 3. ECU Variant Identification Patterns Authoring -->
+                                <DockPanel Grid.Row="5" Margin="0,2,0,4">
+                                    <TextBlock Text="3. ECU Variant Identification Patterns (ECU-VARIANT-PATTERNS)" FontWeight="Bold" Foreground="#1B365D" VerticalAlignment="Center"/>
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                        <TextBox Text="{Binding NewPatternName, UpdateSourceTrigger=PropertyChanged}" Width="90" Height="22" ToolTip="Pattern Name" Margin="0,0,4,0"/>
+                                        <TextBox Text="{Binding NewPatternService, UpdateSourceTrigger=PropertyChanged}" Width="150" Height="22" ToolTip="Service Name" Margin="0,0,4,0"/>
+                                        <TextBox Text="{Binding NewPatternParam, UpdateSourceTrigger=PropertyChanged}" Width="90" Height="22" ToolTip="Param Name" Margin="0,0,4,0"/>
+                                        <TextBox Text="{Binding NewPatternExpectedValue, UpdateSourceTrigger=PropertyChanged}" Width="90" Height="22" ToolTip="Expected Value" Margin="0,0,4,0"/>
+                                        <Button Content="+ Add Pattern" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding AddVariantPatternCommand}"/>
+                                        <Button Content="Delete Pattern" Style="{StaticResource DangerButtonStyle}" Command="{Binding DeleteVariantPatternCommand}"/>
+                                    </StackPanel>
+                                </DockPanel>
+                                <DataGrid Grid.Row="6" ItemsSource="{Binding VariantPatternsView}" SelectedItem="{Binding SelectedVariantPattern, Mode=TwoWay}"
+                                          AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False"
+                                          ColumnHeaderStyle="{StaticResource ModernDataGridHeaderStyle}" RowHeight="23" Margin="0,0,0,8">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="ECU Variant" Binding="{Binding EcuVariant}" Width="200"/>
+                                        <DataGridTextColumn Header="Pattern Name" Binding="{Binding PatternName}" Width="140"/>
+                                        <DataGridTextColumn Header="Diagnostic Service (DIAG-COMM)" Binding="{Binding DiagService}" Width="230"/>
+                                        <DataGridTextColumn Header="Response Parameter" Binding="{Binding ParameterName}" Width="150"/>
+                                        <DataGridTextColumn Header="Expected Match Value" Binding="{Binding ExpectedValue}" Width="*"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+
+                                <!-- 4. ISO Consistency Validation -->
+                                <TextBlock Grid.Row="7" Text="4. ISO 22901 Cross-Reference Consistency Check" FontWeight="Bold" Foreground="#1B365D" Margin="0,2,0,4"/>
+                                <DataGrid Grid.Row="8" ItemsSource="{Binding ConsistencyIssuesView}"
+                                          AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False"
+                                          ColumnHeaderStyle="{StaticResource ModernDataGridHeaderStyle}" RowHeight="23">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Severity" Binding="{Binding Severity}" Width="80"/>
+                                        <DataGridTextColumn Header="ISO Rule" Binding="{Binding StandardRule}" Width="210"/>
+                                        <DataGridTextColumn Header="Source Object" Binding="{Binding SourceObject}" Width="180"/>
+                                        <DataGridTextColumn Header="Message" Binding="{Binding Message}" Width="*"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
                         </TabItem>
 
-                        <!-- TAB 7: COMMUNICATION LOGS (RX/TX) -->
+                        <!-- TAB 8: PDX MANIFEST & ABLOCKS (ISO 22901-2) -->
+                        <TabItem Header="PDX Manifest &amp; ABLOCKs">
+                            <Grid Margin="6">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="190"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Text="Package Metadata (ISO 22901-2 CATALOG)" FontWeight="Bold" Foreground="#1B365D" Margin="0,0,0,4"/>
+                                <DataGrid Grid.Row="1" ItemsSource="{Binding PackageMetadata}"
+                                          AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False"
+                                          ColumnHeaderStyle="{StaticResource ModernDataGridHeaderStyle}" RowHeight="24" Margin="0,0,0,10">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Property" Binding="{Binding Key}" Width="230" FontWeight="Bold"/>
+                                        <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="*"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+
+                                <TextBlock Grid.Row="2" Text="ISO 22901-2 Packaged Archive Blocks (ABLOCKS / index.xml)" FontWeight="Bold" Foreground="#1B365D" Margin="0,2,0,4"/>
+                                <DataGrid Grid.Row="3" ItemsSource="{Binding AblockManifestRows}"
+                                          AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False"
+                                          ColumnHeaderStyle="{StaticResource ModernDataGridHeaderStyle}" RowHeight="24">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="ABLOCK Name" Binding="{Binding AblockName}" Width="200"/>
+                                        <DataGridTextColumn Header="ISO Category" Binding="{Binding IsoCategory}" Width="155"/>
+                                        <DataGridTextColumn Header="Archive Relative Path" Binding="{Binding RelativePath}" Width="240"/>
+                                        <DataGridTextColumn Header="MIME Type" Binding="{Binding MimeType}" Width="180"/>
+                                        <DataGridTextColumn Header="Size (Bytes)" Binding="{Binding FileSizeBytes}" Width="90"/>
+                                        <DataGridTextColumn Header="Checksum" Binding="{Binding Checksum}" Width="*"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+                        </TabItem>
+
+                        <!-- TAB 9: COMMUNICATION & LINKING LOGS -->
                         <TabItem Header="Communication Logs">
-                            <DataGrid ItemsSource="{Binding CommunicationLogs}" 
-                                      AutoGenerateColumns="False" 
-                                      IsReadOnly="True" 
-                                      CanUserAddRows="False"
-                                      ColumnHeaderStyle="{StaticResource ModernDataGridHeaderStyle}"
-                                      RowHeight="22">
+                            <DataGrid ItemsSource="{Binding CommunicationLogs}"
+                                      AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False"
+                                      ColumnHeaderStyle="{StaticResource ModernDataGridHeaderStyle}" RowHeight="22">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="Time" Binding="{Binding Timestamp, StringFormat='HH:mm:ss.fff'}" Width="90"/>
-                                    <DataGridTextColumn Header="Dir" Binding="{Binding Direction}" Width="50"/>
+                                    <DataGridTextColumn Header="Source" Binding="{Binding Direction}" Width="55"/>
                                     <DataGridTextColumn Header="Service ID" Binding="{Binding ServiceId}" Width="80"/>
-                                    <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="280"/>
-                                    <DataGridTextColumn Header="Raw Data" Binding="{Binding RawData}" Width="120"/>
+                                    <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="350"/>
+                                    <DataGridTextColumn Header="Raw PDU" Binding="{Binding RawData}" Width="120"/>
                                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="80"/>
                                 </DataGrid.Columns>
                             </DataGrid>

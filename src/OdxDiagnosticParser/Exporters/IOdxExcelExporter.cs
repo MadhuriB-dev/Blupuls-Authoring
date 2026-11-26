@@ -13,6 +13,7 @@ public class ExcelExportOptions
     public bool IncludeDtcsSheet { get; set; } = true;
     public bool IncludeComParamsSheet { get; set; } = true;
     public bool IncludePdxManifestSheet { get; set; } = true;
+    public bool IncludeIsoTopologySheet { get; set; } = true;
 
     /// <summary>
     /// Hex color for header background (Default: automotive dark navy #1B365D).

@@ -75,6 +75,12 @@ public class OdxExcelExporter : IOdxExcelExporter
             BuildPdxManifestSheet(workbook, package, options);
         }
 
+        if (options.IncludeIsoTopologySheet &&
+            (package.VehicleInfos.Count > 0 || package.ComParamSpecs.Count > 0 || package.Layers.Any(l => l.ParentRefs.Count > 0 || l.VariantPatterns.Count > 0)))
+        {
+            BuildIsoTopologySheet(workbook, package, options);
+        }
+
         return workbook;
     }
 
@@ -232,7 +238,9 @@ public class OdxExcelExporter : IOdxExcelExporter
             "Request Parameters Count",
             "Response Parameters Count",
             "Supported NRCs",
-            "Description"
+            "Description",
+            "Origin Layer (ISO 22901-1)",
+            "Inheritance Scope"
         };
 
         FormatHeaderRow(ws, headers, options);
@@ -281,6 +289,8 @@ public class OdxExcelExporter : IOdxExcelExporter
                 ws.Cell(row, 9).Value = svc.ResponseParameters.Count;
                 ws.Cell(row, 10).Value = svc.NegativeResponses.Count > 0 ? string.Join(", ", svc.NegativeResponses) : "Standard UDS";
                 ws.Cell(row, 11).Value = svc.Description;
+                ws.Cell(row, 12).Value = string.IsNullOrEmpty(svc.DefinedInLayer) ? layer.ShortName : svc.DefinedInLayer;
+                ws.Cell(row, 13).Value = svc.InheritanceScope;
 
                 if (row % 2 == 1)
                 {
@@ -503,11 +513,12 @@ public class OdxExcelExporter : IOdxExcelExporter
 
         var headers = new[]
         {
-            "File Name",
-            "File Type",
+            "File Name / ABLOCK",
+            "ISO Category / File Type",
             "Relative Path",
             "Size (Bytes)",
-            "Checksum (MD5)"
+            "Checksum (MD5)",
+            "MIME Type"
         };
 
         FormatHeaderRow(ws, headers, options);
@@ -517,19 +528,96 @@ public class OdxExcelExporter : IOdxExcelExporter
         {
             foreach (var file in package.Catalog.Files)
             {
-                ws.Cell(row, 1).Value = file.ShortName;
+                ws.Cell(row, 1).Value = !string.IsNullOrEmpty(file.AblockShortName) ? file.AblockShortName : file.ShortName;
                 ws.Cell(row, 2).Value = file.FileType;
                 ws.Cell(row, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
                 ws.Cell(row, 3).Value = file.RelativePath;
                 ws.Cell(row, 4).Value = file.FileSizeBytes;
                 ws.Cell(row, 4).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
                 ws.Cell(row, 5).Value = file.Checksum;
+                ws.Cell(row, 6).Value = file.MimeType;
 
                 if (row % 2 == 1)
                 {
                     ws.Range(row, 1, row, headers.Length).Style.Fill.BackgroundColor = XLColor.FromHtml(options.AlternateRowColorHex);
                 }
 
+                ws.Range(row, 1, row, headers.Length).Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+                ws.Range(row, 1, row, headers.Length).Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+                row++;
+            }
+        }
+
+        FinalizeWorksheet(ws, headers.Length, options);
+    }
+
+    private void BuildIsoTopologySheet(XLWorkbook workbook, DiagnosticPackage package, ExcelExportOptions options)
+    {
+        var ws = workbook.Worksheets.Add("ISO Connections & Topology");
+        ws.ShowGridLines = true;
+
+        var headers = new[]
+        {
+            "ISO Standard Section",
+            "Source Object",
+            "Relation / Role",
+            "Target Object",
+            "Target Type / Link",
+            "Addressing / Pattern",
+            "Status"
+        };
+
+        FormatHeaderRow(ws, headers, options);
+        int row = 2;
+
+        // 1. ODX-V Logical Links
+        foreach (var vi in package.VehicleInfos)
+        {
+            foreach (var ll in vi.LogicalLinks)
+            {
+                var targetBv = !string.IsNullOrEmpty(ll.ResolvedBaseVariantName) ? ll.ResolvedBaseVariantName : ll.BaseVariantRef;
+                var targetProto = !string.IsNullOrEmpty(ll.ResolvedProtocolName) ? ll.ResolvedProtocolName : ll.ProtocolRef;
+                var bus = !string.IsNullOrEmpty(ll.PhysicalVehicleLinkShortName) ? ll.PhysicalVehicleLinkShortName : ll.PhysicalVehicleLinkRef;
+
+                ws.Cell(row, 1).Value = "ISO 22901-1 (ODX-V Logical Link)";
+                ws.Cell(row, 2).Value = $"{vi.Model}: {ll.ShortName}";
+                ws.Cell(row, 3).Value = ll.LinkRole;
+                ws.Cell(row, 4).Value = $"{targetBv} + {targetProto}";
+                ws.Cell(row, 5).Value = bus;
+                ws.Cell(row, 6).Value = $"Req:{ll.PhysicalRequestId} / Resp:{ll.PhysicalResponseId} / Func:{ll.FunctionalRequestId}";
+                ws.Cell(row, 7).Value = !string.IsNullOrEmpty(ll.ResolvedBaseVariantName) ? "Connected" : "Partial";
+                ws.Range(row, 1, row, headers.Length).Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+                ws.Range(row, 1, row, headers.Length).Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+                row++;
+            }
+        }
+
+        // 2. Layer PARENT-REF Inheritance Edges
+        foreach (var layer in package.Layers)
+        {
+            foreach (var pref in layer.ParentRefs)
+            {
+                ws.Cell(row, 1).Value = "ISO 22901-1 (PARENT-REF Inheritance)";
+                ws.Cell(row, 2).Value = layer.ShortName;
+                ws.Cell(row, 3).Value = pref.ParentRefType;
+                ws.Cell(row, 4).Value = pref.DisplayTarget;
+                ws.Cell(row, 5).Value = !string.IsNullOrEmpty(pref.ResolvedLayerType) ? pref.ResolvedLayerType : pref.DocType;
+                ws.Cell(row, 6).Value = !string.IsNullOrEmpty(pref.DocRef) ? $"DOCREF={pref.DocRef}" : "Local Container";
+                ws.Cell(row, 7).Value = pref.ResolutionStatusText;
+                ws.Range(row, 1, row, headers.Length).Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+                ws.Range(row, 1, row, headers.Length).Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+                row++;
+            }
+
+            foreach (var pat in layer.VariantPatterns)
+            {
+                ws.Cell(row, 1).Value = "ISO 22901-1 (ECU-VARIANT-PATTERN)";
+                ws.Cell(row, 2).Value = layer.ShortName;
+                ws.Cell(row, 3).Value = "Variant Identification";
+                ws.Cell(row, 4).Value = pat.Name;
+                ws.Cell(row, 5).Value = "MatchingRule";
+                ws.Cell(row, 6).Value = pat.Summary;
+                ws.Cell(row, 7).Value = "Active Pattern";
                 ws.Range(row, 1, row, headers.Length).Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
                 ws.Range(row, 1, row, headers.Length).Style.Border.InsideBorder = XLBorderStyleValues.Thin;
                 row++;

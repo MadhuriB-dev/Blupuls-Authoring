@@ -8,6 +8,7 @@ namespace OdxDiagnosticParser.Parsers;
 
 /// <summary>
 /// High-performance, schema-resilient parser for ODX XML (ODX 2.0.1, 2.2.0, ISO 22901-1).
+/// Parses ODX-D, ODX-C, ODX-V, ODX-E, and resolves PARENT-REFS, COMPARAM-SPEC, UNIT-REF, DOP-REF, and TABLE-ROWs.
 /// </summary>
 public class OdxXmlParser : IOdxParser
 {
@@ -20,6 +21,13 @@ public class OdxXmlParser : IOdxParser
     };
 
     public DiagnosticPackage ParseFile(string filePath)
+    {
+        var pkg = ParseFileWithoutLinking(filePath);
+        OdxIsoLinker.LinkPackage(pkg);
+        return pkg;
+    }
+
+    internal DiagnosticPackage ParseFileWithoutLinking(string filePath)
     {
         if (string.IsNullOrWhiteSpace(filePath))
             throw new ArgumentException("File path cannot be null or empty.", nameof(filePath));
@@ -35,17 +43,23 @@ public class OdxXmlParser : IOdxParser
         }
 
         using var stream = File.OpenRead(filePath);
-        var pkg = ParseStream(stream, Path.GetFileName(filePath));
+        var pkg = ParseStreamWithoutLinking(stream, Path.GetFileName(filePath));
         pkg.SourcePath = filePath;
         return pkg;
     }
 
     public DiagnosticPackage ParseXml(string xmlContent, string sourceName = "InlineXml")
     {
+        var pkg = ParseXmlWithoutLinking(xmlContent, sourceName);
+        OdxIsoLinker.LinkPackage(pkg);
+        return pkg;
+    }
+
+    internal DiagnosticPackage ParseXmlWithoutLinking(string xmlContent, string sourceName = "InlineXml")
+    {
         if (string.IsNullOrWhiteSpace(xmlContent))
             throw new ArgumentException("XML content cannot be null or empty.", nameof(xmlContent));
 
-        // Strip any leading non-XML characters, BOM artifacts, or zero-width spaces before '<'
         int xmlStart = xmlContent.IndexOf('<');
         if (xmlStart > 0)
         {
@@ -60,10 +74,16 @@ public class OdxXmlParser : IOdxParser
 
     public DiagnosticPackage ParseStream(Stream stream, string sourceName = "Stream")
     {
+        var pkg = ParseStreamWithoutLinking(stream, sourceName);
+        OdxIsoLinker.LinkPackage(pkg);
+        return pkg;
+    }
+
+    private DiagnosticPackage ParseStreamWithoutLinking(Stream stream, string sourceName = "Stream")
+    {
         if (stream == null)
             throw new ArgumentNullException(nameof(stream));
 
-        // Read all stream bytes to inspect magic header and safely decode encoding
         using var ms = new MemoryStream();
         stream.CopyTo(ms);
         var bytes = ms.ToArray();
@@ -71,7 +91,6 @@ public class OdxXmlParser : IOdxParser
         if (bytes.Length == 0)
             throw new ArgumentException("The stream is empty.", nameof(stream));
 
-        // Check if stream is actually a ZIP/PDX archive (PK\x03\x04 or PK\x05\x06)
         if (bytes.Length >= 4 && bytes[0] == 0x50 && bytes[1] == 0x4B &&
             (bytes[2] == 0x03 || bytes[2] == 0x05 || bytes[2] == 0x07))
         {
@@ -88,9 +107,8 @@ public class OdxXmlParser : IOdxParser
             }
         }
 
-        // Decode XML bytes handling BOM, UTF-16, ISO-8859-1, Windows-1252
         string xmlContent = DecodeXmlBytes(bytes);
-        return ParseXml(xmlContent, sourceName);
+        return ParseXmlWithoutLinking(xmlContent, sourceName);
     }
 
     private static bool IsZipArchive(string filePath)
@@ -119,21 +137,19 @@ public class OdxXmlParser : IOdxParser
         if (bytes.Length == 0)
             throw new ArgumentException("XML content is empty.");
 
-        // Detect encoding from BOM
         var encoding = System.Text.Encoding.UTF8;
         if (bytes.Length >= 2)
         {
             if (bytes[0] == 0xFF && bytes[1] == 0xFE)
-                encoding = System.Text.Encoding.Unicode; // UTF-16 LE
+                encoding = System.Text.Encoding.Unicode;
             else if (bytes[0] == 0xFE && bytes[1] == 0xFF)
-                encoding = System.Text.Encoding.BigEndianUnicode; // UTF-16 BE
+                encoding = System.Text.Encoding.BigEndianUnicode;
             else if (bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF)
                 encoding = System.Text.Encoding.UTF8;
         }
 
         string text = encoding.GetString(bytes);
 
-        // Check if XML declaration specifies a legacy OEM encoding (e.g. ISO-8859-1, Windows-1252)
         if (text.Contains("encoding=\"ISO-8859-1\"", StringComparison.OrdinalIgnoreCase) ||
             text.Contains("encoding='ISO-8859-1'", StringComparison.OrdinalIgnoreCase))
         {
@@ -145,7 +161,6 @@ public class OdxXmlParser : IOdxParser
             try { text = System.Text.Encoding.GetEncoding(1252).GetString(bytes); } catch { }
         }
 
-        // Strip any leading non-XML characters, BOM artifacts, or zero-width spaces before '<'
         int xmlStart = text.IndexOf('<');
         if (xmlStart > 0)
         {
@@ -173,18 +188,39 @@ public class OdxXmlParser : IOdxParser
         if (root == null)
             return pkg;
 
-        // Check model version
         pkg.Version = root.Attr("MODEL-VERSION");
         if (string.IsNullOrWhiteSpace(pkg.Version))
             pkg.Version = "2.2.0";
 
-        // Global dictionaries for cross-referencing ID-REFs
+        // 1. Parse ISO 22901-1 ODX-C COMPARAM-SPEC (if present)
+        ParseComParamSpecs(root, sourceName, pkg);
+
+        // 2. Parse ISO 22901-1 ODX-V VEHICLE-INFO-SPEC (if present)
+        ParseVehicleInfoSpecs(root, sourceName, pkg);
+
+        // Global dictionaries for cross-referencing ID-REFs within document
+        var globalUnits = new Dictionary<string, PhysicalUnitInfo>(StringComparer.OrdinalIgnoreCase);
+        foreach (var uEl in root.Desc("UNIT"))
+        {
+            var u = ParseUnitElement(uEl);
+            if (!string.IsNullOrEmpty(u.Id) && !globalUnits.ContainsKey(u.Id))
+                globalUnits[u.Id] = u;
+        }
+
         var globalRequests = new Dictionary<string, XElement>(StringComparer.OrdinalIgnoreCase);
         var globalPosResponses = new Dictionary<string, XElement>(StringComparer.OrdinalIgnoreCase);
         var globalNegResponses = new Dictionary<string, XElement>(StringComparer.OrdinalIgnoreCase);
         var globalDops = new Dictionary<string, DataObjectProperty>(StringComparer.OrdinalIgnoreCase);
+        var globalFunctClasses = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        // Index all global requests, responses, and DOPs in the document
+        foreach (var fcEl in root.Desc("FUNCT-CLASS"))
+        {
+            var id = fcEl.Attr("ID");
+            var sn = fcEl.El("SHORT-NAME").Val();
+            if (!string.IsNullOrEmpty(id))
+                globalFunctClasses[id] = !string.IsNullOrEmpty(sn) ? sn : id;
+        }
+
         foreach (var reqEl in root.Desc("REQUEST"))
         {
             var id = reqEl.Attr("ID");
@@ -206,65 +242,229 @@ public class OdxXmlParser : IOdxParser
                 globalNegResponses[id] = negEl;
         }
 
-        // Global DOP specs (e.g. in shared data or protocols)
         foreach (var dopEl in root.Desc("DATA-OBJECT-PROP"))
         {
-            var dop = ParseDataObjectProperty(dopEl);
+            var dop = ParseDataObjectProperty(dopEl, globalUnits);
             if (!string.IsNullOrEmpty(dop.Id) && !globalDops.ContainsKey(dop.Id))
                 globalDops[dop.Id] = dop;
         }
 
-        // Parse layers: BASE-VARIANTS, ECU-VARIANTS, ECU-SHARED-DATAS, PROTOCOLS
-        var layerNodes = new List<(XElement Element, DiagnosticLayerType Type)>();
+        // Collect layers and record their enclosing DIAG-LAYER-CONTAINER SHORT-NAME (ISO DOCREF)
+        var layerNodes = new List<(XElement Element, DiagnosticLayerType Type, string ContainerShortName)>();
 
-        foreach (var el in root.Desc("BASE-VARIANT"))
-            layerNodes.Add((el, DiagnosticLayerType.BaseVariant));
-
-        foreach (var el in root.Desc("ECU-VARIANT"))
-            layerNodes.Add((el, DiagnosticLayerType.EcuVariant));
-
-        foreach (var el in root.Desc("ECU-SHARED-DATA"))
-            layerNodes.Add((el, DiagnosticLayerType.EcuSharedData));
-
-        foreach (var el in root.Desc("PROTOCOL"))
-            layerNodes.Add((el, DiagnosticLayerType.Protocol));
-
-        foreach (var el in root.Desc("FUNCTIONAL-GROUP"))
-            layerNodes.Add((el, DiagnosticLayerType.FunctionalGroup));
-
-        // If no container was found but there are DIAG-SERVICES or root is DIAG-LAYER
-        if (layerNodes.Count == 0)
+        void AddLayerType(string elementName, DiagnosticLayerType layerType)
         {
-            var diagLayer = root.Desc("DIAG-LAYER").FirstOrDefault() ?? root;
-            layerNodes.Add((diagLayer, DiagnosticLayerType.EcuVariant));
+            foreach (var el in root.Desc(elementName))
+            {
+                var containerEl = el.Ancestors().FirstOrDefault(a =>
+                    string.Equals(a.Name.LocalName, "DIAG-LAYER-CONTAINER", StringComparison.OrdinalIgnoreCase));
+                var containerName = containerEl?.El("SHORT-NAME")?.Val() ?? Path.GetFileNameWithoutExtension(sourceName);
+                layerNodes.Add((el, layerType, containerName));
+            }
         }
 
-        foreach (var (layerEl, layerType) in layerNodes)
+        AddLayerType("PROTOCOL", DiagnosticLayerType.Protocol);
+        AddLayerType("FUNCTIONAL-GROUP", DiagnosticLayerType.FunctionalGroup);
+        AddLayerType("ECU-SHARED-DATA", DiagnosticLayerType.EcuSharedData);
+        AddLayerType("BASE-VARIANT", DiagnosticLayerType.BaseVariant);
+        AddLayerType("ECU-VARIANT", DiagnosticLayerType.EcuVariant);
+
+        // Fallback only if XML contains DIAG-SERVICE or DIAG-LAYER without typed layer elements
+        if (layerNodes.Count == 0 && !root.Desc("COMPARAM-SPEC").Any() && !root.Desc("VEHICLE-INFO-SPEC").Any())
         {
-            var layer = ParseDiagnosticLayer(layerEl, layerType, sourceName, pkg.Version, globalRequests, globalPosResponses, globalNegResponses, globalDops);
+            var diagLayer = root.Desc("DIAG-LAYER").FirstOrDefault();
+            if (diagLayer != null || root.Desc("DIAG-SERVICE").Any())
+            {
+                layerNodes.Add((diagLayer ?? root, DiagnosticLayerType.EcuVariant, Path.GetFileNameWithoutExtension(sourceName)));
+            }
+        }
+
+        foreach (var (layerEl, layerType, containerName) in layerNodes)
+        {
+            var layer = ParseDiagnosticLayer(
+                layerEl, layerType, containerName, sourceName, pkg.Version,
+                globalRequests, globalPosResponses, globalNegResponses, globalDops, globalUnits, globalFunctClasses);
             pkg.Layers.Add(layer);
         }
 
         if (pkg.Layers.Count > 0)
         {
             var primaryLayer = pkg.Layers.FirstOrDefault(l => l.LayerType == DiagnosticLayerType.EcuVariant)
+                               ?? pkg.Layers.FirstOrDefault(l => l.LayerType == DiagnosticLayerType.BaseVariant)
                                ?? pkg.Layers[0];
             pkg.Name = !string.IsNullOrWhiteSpace(primaryLayer.ShortName) ? primaryLayer.ShortName : pkg.Name;
             pkg.Description = primaryLayer.Description;
+        }
+        else if (pkg.VehicleInfos.Count > 0)
+        {
+            pkg.Name = pkg.VehicleInfos[0].ShortName;
+        }
+        else if (pkg.ComParamSpecs.Count > 0)
+        {
+            pkg.Name = pkg.ComParamSpecs[0].ShortName;
         }
 
         return pkg;
     }
 
+    private void ParseComParamSpecs(XElement root, string sourceName, DiagnosticPackage pkg)
+    {
+        foreach (var cpsEl in root.Desc("COMPARAM-SPEC"))
+        {
+            var spec = new ComParamSpecInfo
+            {
+                Id = cpsEl.Attr("ID"),
+                ShortName = cpsEl.El("SHORT-NAME").Val(),
+                LongName = cpsEl.El("LONG-NAME").Val(),
+                Description = ExtractDescription(cpsEl),
+                SourceFileName = sourceName
+            };
+
+            if (string.IsNullOrWhiteSpace(spec.ShortName))
+                spec.ShortName = spec.Id;
+
+            foreach (var psEl in cpsEl.Desc("PROT-STACK"))
+            {
+                var stack = new ProtStackInfo
+                {
+                    Id = psEl.Attr("ID"),
+                    ShortName = psEl.El("SHORT-NAME").Val(),
+                    LongName = psEl.El("LONG-NAME").Val(),
+                    PduProtocolType = psEl.El("PDU-PROTOCOL-TYPE").Val(),
+                    PhysicalLinkType = psEl.El("PHYSICAL-LINK-TYPE").Val()
+                };
+                foreach (var ssRef in psEl.Desc("COMPARAM-SUBSET-REF"))
+                {
+                    var r = ssRef.Attr("ID-REF");
+                    if (!string.IsNullOrEmpty(r))
+                        stack.ComParamSubsetRefs.Add(r);
+                }
+                spec.ProtStacks.Add(stack);
+            }
+
+            // Parse COMPARAM definitions inside COMPARAM-SUBSET
+            foreach (var cpEl in cpsEl.Desc("COMPARAM"))
+            {
+                var cpName = cpEl.El("SHORT-NAME").Val();
+                var cpVal = cpEl.El("PHYSICAL-DEFAULT-VALUE")?.Val();
+                if (string.IsNullOrEmpty(cpVal)) cpVal = cpEl.El("VALUE")?.Val();
+                if (string.IsNullOrEmpty(cpVal)) cpVal = cpEl.El("SIMPLE-VALUE")?.Val();
+
+                if (!string.IsNullOrEmpty(cpName))
+                {
+                    spec.DefaultComParams.Add(new CommunicationParameter
+                    {
+                        Name = cpName,
+                        Value = cpVal ?? string.Empty,
+                        ParamClass = cpEl.Attr("PARAM-CLASS"),
+                        Protocol = spec.ShortName,
+                        DefinedInLayer = spec.ShortName,
+                        Description = ExtractDescription(cpEl)
+                    });
+                }
+            }
+
+            pkg.ComParamSpecs.Add(spec);
+        }
+    }
+
+    private void ParseVehicleInfoSpecs(XElement root, string sourceName, DiagnosticPackage pkg)
+    {
+        foreach (var visEl in root.Desc("VEHICLE-INFO-SPEC"))
+        {
+            var infoNodes = visEl.Desc("VEHICLE-INFO").Concat(visEl.Desc("VEHICLE-INFORMATION")).ToList();
+            if (infoNodes.Count == 0) infoNodes.Add(visEl);
+
+            foreach (var vEl in infoNodes)
+            {
+                var vi = new VehicleInfoSpec
+                {
+                    Id = vEl.Attr("ID"),
+                    ShortName = vEl.El("SHORT-NAME").Val(),
+                    LongName = vEl.El("LONG-NAME").Val(),
+                    Model = vEl.El("MODEL")?.Val() ?? vEl.El("VEHICLE-MODEL")?.Val() ?? vEl.El("INFO-COMPONENT")?.Val() ?? vEl.El("LONG-NAME").Val(),
+                    Company = vEl.El("COMPANY")?.Val() is { Length: > 0 } compVal
+                        ? compVal
+                        : (root.Desc("COMPANY-DATA").FirstOrDefault()?.El("SHORT-NAME").Val() ?? string.Empty),
+                    ModelYear = vEl.El("MODEL-YEAR")?.Val() ?? string.Empty,
+                    SourceFileName = sourceName
+                };
+
+                if (string.IsNullOrEmpty(vi.ShortName))
+                    vi.ShortName = visEl.El("SHORT-NAME").Val();
+
+                foreach (var pvlEl in vEl.Desc("PHYSICAL-VEHICLE-LINK"))
+                {
+                    vi.PhysicalVehicleLinks.Add(new PhysicalVehicleLink
+                    {
+                        Id = pvlEl.Attr("ID"),
+                        ShortName = pvlEl.El("SHORT-NAME").Val(),
+                        LongName = pvlEl.El("LONG-NAME").Val(),
+                        LinkType = !string.IsNullOrEmpty(pvlEl.Attr("TYPE")) ? pvlEl.Attr("TYPE") : pvlEl.El("LINK-TYPE").Val(),
+                        Description = ExtractDescription(pvlEl)
+                    });
+                }
+
+                // Collect GATEWAY-LOGICAL-LINK, MEMBER-LOGICAL-LINK, FUNCTIONAL-GROUP-LOGICAL-LINK, LOGICAL-LINK
+                var linkElements = vEl.Desc("LOGICAL-LINKS").Elements();
+                foreach (var llEl in linkElements)
+                {
+                    var localName = llEl.Name.LocalName.ToUpperInvariant();
+                    if (!localName.Contains("LOGICAL-LINK")) continue;
+
+                    var link = new LogicalLink
+                    {
+                        Id = llEl.Attr("ID"),
+                        ShortName = llEl.El("SHORT-NAME").Val(),
+                        LongName = llEl.El("LONG-NAME").Val(),
+                        LinkRole = llEl.Name.LocalName,
+                        PhysicalVehicleLinkRef = llEl.El("PHYSICAL-VEHICLE-LINK-REF")?.Attr("ID-REF") ?? string.Empty,
+                        ProtocolRef = llEl.El("PROTOCOL-REF")?.Attr("ID-REF") ?? llEl.El("PROTOCOL-SNREF")?.Attr("SHORT-NAME") ?? string.Empty,
+                        ProtocolDocRef = llEl.El("PROTOCOL-REF")?.Attr("DOCREF") ?? string.Empty,
+                        BaseVariantRef = llEl.El("BASE-VARIANT-REF")?.Attr("ID-REF") ?? llEl.El("BASE-VARIANT-SNREF")?.Attr("SHORT-NAME") ?? string.Empty,
+                        BaseVariantDocRef = llEl.El("BASE-VARIANT-REF")?.Attr("DOCREF") ?? string.Empty,
+                        FunctionalGroupRef = llEl.El("FUNCTIONAL-GROUP-REF")?.Attr("ID-REF") ?? llEl.El("FUNCTIONAL-GROUP-SNREF")?.Attr("SHORT-NAME") ?? string.Empty,
+                        FunctionalGroupDocRef = llEl.El("FUNCTIONAL-GROUP-REF")?.Attr("DOCREF") ?? string.Empty
+                    };
+
+                    var cpElements = llEl.Desc("LINK-COMPARAM-REF").Concat(llEl.Desc("COMPARAM-REF"));
+                    foreach (var cpEl in cpElements)
+                    {
+                        var cp = ParseSingleComParamRef(cpEl, vi.ShortName);
+                        if (!string.IsNullOrEmpty(cp.Name))
+                        {
+                            link.LinkComParams.Add(cp);
+
+                            var upperName = cp.Name.ToUpperInvariant();
+                            if (upperName.Contains("PHYSREQ") || upperName.Contains("CANIDTX") || upperName == "CP_CANID" || upperName.Contains("REQUESTCANID"))
+                                link.PhysicalRequestId = cp.Value;
+                            else if (upperName.Contains("PHYSRESP") || upperName.Contains("CANIDRX") || upperName.Contains("RESPONSECANID"))
+                                link.PhysicalResponseId = cp.Value;
+                            else if (upperName.Contains("FUNCREQ") || upperName.Contains("FUNCTIONALREQUEST"))
+                                link.FunctionalRequestId = cp.Value;
+                        }
+                    }
+
+                    vi.LogicalLinks.Add(link);
+                }
+
+                pkg.VehicleInfos.Add(vi);
+            }
+        }
+    }
+
     private DiagnosticLayer ParseDiagnosticLayer(
         XElement layerEl,
         DiagnosticLayerType layerType,
+        string containerShortName,
         string sourceFileName,
         string defaultModelVersion,
         Dictionary<string, XElement> globalRequests,
         Dictionary<string, XElement> globalPosResponses,
         Dictionary<string, XElement> globalNegResponses,
-        Dictionary<string, DataObjectProperty> globalDops)
+        Dictionary<string, DataObjectProperty> globalDops,
+        Dictionary<string, PhysicalUnitInfo> globalUnits,
+        Dictionary<string, string> globalFunctClasses)
     {
         var layer = new DiagnosticLayer
         {
@@ -274,30 +474,63 @@ public class OdxXmlParser : IOdxParser
             LongName = layerEl.El("LONG-NAME").Val(),
             Description = ExtractDescription(layerEl),
             ModelVersion = layerEl.Attr("MODEL-VERSION") is { Length: > 0 } v ? v : defaultModelVersion,
-            SourceFileName = sourceFileName
+            SourceFileName = sourceFileName,
+            ContainerShortName = containerShortName
         };
 
-        // Fallback shortname if empty
         if (string.IsNullOrWhiteSpace(layer.ShortName))
             layer.ShortName = layerEl.Attr("ID");
+
+        // Parse local UNIT-SPEC
+        var localUnits = new Dictionary<string, PhysicalUnitInfo>(globalUnits, StringComparer.OrdinalIgnoreCase);
+        foreach (var uEl in layerEl.Desc("UNIT"))
+        {
+            var u = ParseUnitElement(uEl);
+            if (!string.IsNullOrEmpty(u.Id))
+                localUnits[u.Id] = u;
+            layer.Units.Add(u);
+        }
+
+        // Protocol -> ODX-C ComParamSpec link
+        if (layerType == DiagnosticLayerType.Protocol)
+        {
+            var cpsRef = layerEl.El("COMPARAM-SPEC-REF");
+            if (cpsRef != null)
+            {
+                layer.ComParamSpecRef = cpsRef.Attr("ID-REF");
+                layer.ComParamSpecDocRef = cpsRef.Attr("DOCREF");
+            }
+            layer.ProtStackShortName = layerEl.El("PROT-STACK-SNREF")?.Attr("SHORT-NAME") ?? string.Empty;
+        }
+
+        // ISO 22901-1 PARENT-REFS (Layer inheritance connections)
+        ParseParentRefs(layerEl, layer);
+
+        // ECU-VARIANT-PATTERNS (Variant matching identification)
+        ParseVariantPatterns(layerEl, layer);
 
         // Local DOPs
         var localDops = new Dictionary<string, DataObjectProperty>(globalDops, StringComparer.OrdinalIgnoreCase);
         foreach (var dopEl in layerEl.Desc("DATA-OBJECT-PROP"))
         {
-            var dop = ParseDataObjectProperty(dopEl);
+            var dop = ParseDataObjectProperty(dopEl, localUnits);
+            dop.DefinedInLayer = layer.ShortName;
+            dop.IsInherited = false;
             if (!string.IsNullOrEmpty(dop.Id))
                 localDops[dop.Id] = dop;
             layer.DataObjectProperties.Add(dop);
         }
 
+        // ODX Tables / TableRows (used by TABLE-KEY / DIDs)
+        ParseTables(layerEl, layer);
+
         // DTCs
         ParseDiagnosticTroubleCodes(layerEl, layer);
 
-        // Services
-        ParseDiagnosticServices(layerEl, layer, localDops, globalRequests, globalPosResponses, globalNegResponses);
+        // Services (DIAG-SERVICES and DIAG-COMMS)
+        ParseDiagnosticServices(layerEl, layer, localDops, globalRequests, globalPosResponses, globalNegResponses, globalFunctClasses);
 
-        // DIDs (synthesized from 0x22 / 0x2E services and parameters)
+        // DIDs (synthesized from 0x22 / 0x2E services and TABLE-ROW definitions)
         ResolveDataIdentifiers(layer, localDops);
 
         // Communication Parameters
@@ -306,28 +539,147 @@ public class OdxXmlParser : IOdxParser
         return layer;
     }
 
+    private void ParseParentRefs(XElement layerEl, DiagnosticLayer layer)
+    {
+        var parentRefsEl = layerEl.El("PARENT-REFS");
+        if (parentRefsEl == null) return;
+
+        foreach (var pRefEl in parentRefsEl.Elements())
+        {
+            if (!pRefEl.Name.LocalName.Contains("PARENT-REF", StringComparison.OrdinalIgnoreCase) &&
+                !pRefEl.Name.LocalName.EndsWith("-REF", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var xsiType = pRefEl.Attr("type");
+            if (string.IsNullOrEmpty(xsiType))
+                xsiType = pRefEl.Name.LocalName;
+
+            var pref = new LayerParentRef
+            {
+                IdRef = pRefEl.Attr("ID-REF"),
+                ShortNameRef = pRefEl.Attr("SHORT-NAME-REF") is { Length: > 0 } sn ? sn : pRefEl.El("SHORT-NAME").Val(),
+                DocRef = pRefEl.Attr("DOCREF"),
+                DocType = !string.IsNullOrEmpty(pRefEl.Attr("DOCTYPE")) ? pRefEl.Attr("DOCTYPE") : "CONTAINER",
+                ParentRefType = xsiType
+            };
+
+            foreach (var excluded in pRefEl.Desc("NOT-INHERITED-DIAG-COMM"))
+            {
+                var target = excluded.El("DIAG-COMM-SNREF")?.Attr("SHORT-NAME") ?? excluded.El("SHORT-NAME").Val();
+                if (!string.IsNullOrEmpty(target))
+                    pref.NotInheritedDiagComms.Add(target);
+            }
+
+            foreach (var excludedDop in pRefEl.Desc("NOT-INHERITED-DOP"))
+            {
+                var target = excludedDop.El("DOP-BASE-SNREF")?.Attr("SHORT-NAME") ?? excludedDop.El("SHORT-NAME").Val();
+                if (!string.IsNullOrEmpty(target))
+                    pref.NotInheritedDops.Add(target);
+            }
+
+            foreach (var excludedTbl in pRefEl.Desc("NOT-INHERITED-TABLE"))
+            {
+                var target = excludedTbl.El("TABLE-SNREF")?.Attr("SHORT-NAME") ?? excludedTbl.El("SHORT-NAME").Val();
+                if (!string.IsNullOrEmpty(target))
+                    pref.NotInheritedTables.Add(target);
+            }
+
+            if (!string.IsNullOrEmpty(pref.IdRef) || !string.IsNullOrEmpty(pref.ShortNameRef))
+                layer.ParentRefs.Add(pref);
+        }
+    }
+
+    private static void ParseVariantPatterns(XElement layerEl, DiagnosticLayer layer)
+    {
+        foreach (var patEl in layerEl.Desc("ECU-VARIANT-PATTERN"))
+        {
+            var pattern = new EcuVariantPattern
+            {
+                Name = patEl.El("SHORT-NAME").Val() is { Length: > 0 } sn ? sn : $"Pattern_{layer.VariantPatterns.Count + 1}"
+            };
+
+            foreach (var mpEl in patEl.Desc("MATCHING-PARAMETER"))
+            {
+                pattern.MatchingParameters.Add(new MatchingParameterInfo
+                {
+                    DiagCommShortName = mpEl.El("DIAG-COMM-SNREF")?.Attr("SHORT-NAME") ?? string.Empty,
+                    OutParamShortName = mpEl.El("OUT-PARAM-IF-SNREF")?.Attr("SHORT-NAME") ?? string.Empty,
+                    ExpectedValue = mpEl.El("EXPECTED-VALUE").Val()
+                });
+            }
+
+            layer.VariantPatterns.Add(pattern);
+        }
+    }
+
+    private static void ParseTables(XElement layerEl, DiagnosticLayer layer)
+    {
+        foreach (var tableEl in layerEl.Desc("TABLE"))
+        {
+            var tableId = tableEl.Attr("ID");
+            var tableName = tableEl.El("SHORT-NAME").Val();
+            var semantic = tableEl.Attr("SEMANTIC");
+
+            foreach (var rowEl in tableEl.Desc("TABLE-ROW"))
+            {
+                var keyVal = rowEl.El("KEY").Val();
+                var dopRef = rowEl.El("DATA-OBJECT-PROP-REF")?.Attr("ID-REF")
+                             ?? rowEl.El("STRUCTURE-REF")?.Attr("ID-REF")
+                             ?? string.Empty;
+
+                layer.TableRows.Add(new OdxTableRowInfo
+                {
+                    TableId = tableId,
+                    TableShortName = tableName,
+                    RowId = rowEl.Attr("ID"),
+                    ShortName = rowEl.El("SHORT-NAME").Val(),
+                    LongName = rowEl.El("LONG-NAME").Val(),
+                    KeyHex = !string.IsNullOrEmpty(keyVal) ? NormalizeHex(keyVal) : string.Empty,
+                    Semantic = !string.IsNullOrEmpty(rowEl.Attr("SEMANTIC")) ? rowEl.Attr("SEMANTIC") : semantic,
+                    DopRef = dopRef,
+                    Description = ExtractDescription(rowEl)
+                });
+            }
+        }
+    }
+
     private void ParseDiagnosticServices(
         XElement layerEl,
         DiagnosticLayer layer,
         Dictionary<string, DataObjectProperty> dops,
         Dictionary<string, XElement> globalRequests,
         Dictionary<string, XElement> globalPosResponses,
-        Dictionary<string, XElement> globalNegResponses)
+        Dictionary<string, XElement> globalNegResponses,
+        Dictionary<string, string> globalFunctClasses)
     {
         var serviceElements = layerEl.Desc("DIAG-SERVICE");
         foreach (var sEl in serviceElements)
         {
+            var addressing = sEl.Attr("ADDRESSING");
             var service = new DiagnosticService
             {
                 Id = sEl.Attr("ID"),
                 ShortName = sEl.El("SHORT-NAME").Val(),
                 LongName = sEl.El("LONG-NAME").Val(),
                 Description = ExtractDescription(sEl),
-                Semantic = sEl.Attr("SEMANTIC")
+                Semantic = sEl.Attr("SEMANTIC"),
+                Addressing = NormalizeAddressing(addressing),
+                DefinedInLayer = layer.ShortName,
+                DefinedInLayerType = layer.LayerType.ToString(),
+                IsInherited = false
             };
 
             if (string.IsNullOrWhiteSpace(service.Semantic))
                 service.Semantic = sEl.El("SEMANTIC").Val();
+
+            foreach (var fcRef in sEl.Desc("FUNCT-CLASS-REF"))
+            {
+                var refId = fcRef.Attr("ID-REF");
+                if (!string.IsNullOrEmpty(refId))
+                    service.FunctionalClasses.Add(globalFunctClasses.TryGetValue(refId, out var fcName) ? fcName : refId);
+            }
 
             // Resolve Request
             XElement? requestEl = sEl.El("REQUEST");
@@ -342,35 +694,28 @@ public class OdxXmlParser : IOdxParser
             {
                 service.RequestParameters = ParseParameters(requestEl, dops);
 
-                // Service ID
                 var sidParam = service.RequestParameters.FirstOrDefault(p =>
                     string.Equals(p.Semantic, "SERVICE-ID", StringComparison.OrdinalIgnoreCase) ||
                     p.BytePosition == 0 && !string.IsNullOrEmpty(p.DefaultValueHex));
 
                 if (sidParam != null)
-                {
                     service.ServiceIdHex = NormalizeHex(sidParam.DefaultValueHex);
-                }
 
-                // Sub-function
                 var subParam = service.RequestParameters.FirstOrDefault(p =>
                     string.Equals(p.Semantic, "SUBFUNCTION", StringComparison.OrdinalIgnoreCase) ||
                     string.Equals(p.Semantic, "SUB-FUNCTION", StringComparison.OrdinalIgnoreCase) ||
                     p.BytePosition == 1 && IsSubFunctionService(service.ServiceIdHex));
 
                 if (subParam != null)
-                {
                     service.SubFunctionHex = NormalizeHex(subParam.DefaultValueHex);
-                }
             }
 
-            // Fallback for Service ID from short name or semantic if not in parameters
             if (string.IsNullOrEmpty(service.ServiceIdHex))
             {
                 service.ServiceIdHex = InferServiceId(service.ShortName, service.Semantic);
             }
 
-            // Resolve Positive Response
+            // Resolve Positive Response (supports <POS-RESPONSE>, <POS-RESPONSES>/<POS-RESPONSE-REF>, <POS-RESPONSE-REFS>/<POS-RESPONSE-REF>)
             var posRespEl = sEl.El("POS-RESPONSES")?.El("POS-RESPONSE") ?? sEl.El("POS-RESPONSE");
             if (posRespEl == null)
             {
@@ -396,31 +741,55 @@ public class OdxXmlParser : IOdxParser
                     service.PositiveResponseSidHex = $"0x{(sidNum + 0x40):X2}";
                 }
             }
+            else if (!string.IsNullOrEmpty(service.ServiceIdHex) &&
+                     int.TryParse(service.ServiceIdHex.Replace("0x", ""), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var sidNumFallback))
+            {
+                service.PositiveResponseSidHex = $"0x{(sidNumFallback + 0x40):X2}";
+            }
 
             // Resolve Negative Responses
-            var negRefs = sEl.Desc("NEG-RESPONSE-REF").Select(r => r.Attr("ID-REF")).Where(r => !string.IsNullOrEmpty(r));
+            var negRefs = sEl.Desc("NEG-RESPONSE-REF").Select(r => r.Attr("ID-REF")).Where(r => !string.IsNullOrEmpty(r)).ToList();
             foreach (var nRef in negRefs)
             {
                 if (globalNegResponses.TryGetValue(nRef, out var negEl))
                 {
-                    var nrcName = negEl.El("SHORT-NAME").Val();
-                    var nrcParam = negEl.Desc("PARAM").FirstOrDefault(p => string.Equals(p.Attr("SEMANTIC"), "NRC", StringComparison.OrdinalIgnoreCase));
-                    var nrcCode = nrcParam?.El("CODED-VALUE").Val() ?? nrcParam?.El("DEFAULT-VALUE").Val() ?? "";
-                    if (!string.IsNullOrEmpty(nrcCode))
-                        service.NegativeResponses.Add($"{NormalizeHex(nrcCode)} {nrcName}".Trim());
-                    else if (!string.IsNullOrEmpty(nrcName))
-                        service.NegativeResponses.Add(nrcName);
+                    AddParsedNegativeResponse(service, negEl);
                 }
                 else
                 {
                     service.NegativeResponses.Add(nRef);
                 }
             }
+            if (negRefs.Count == 0)
+            {
+                var inlineNegs = sEl.El("NEG-RESPONSES")?.Elements().Where(e => e.Name.LocalName == "NEG-RESPONSE")
+                                 ?? Enumerable.Empty<XElement>();
+                foreach (var inlineNeg in inlineNegs)
+                    AddParsedNegativeResponse(service, inlineNeg);
+            }
 
-            // Categorize service into Current Data, Stored Data, or System Control
             service.DataCategory = CategorizeService(service.ServiceIdHex, service.Semantic, service.ShortName, service.Description);
-
             layer.Services.Add(service);
+        }
+    }
+
+    private void AddParsedNegativeResponse(DiagnosticService service, XElement negEl)
+    {
+        var nrcName = negEl.El("SHORT-NAME").Val();
+        var nrcParam = negEl.Desc("PARAM").FirstOrDefault(p => string.Equals(p.Attr("SEMANTIC"), "NRC", StringComparison.OrdinalIgnoreCase));
+        var nrcCode = nrcParam?.El("CODED-VALUE").Val() ?? nrcParam?.El("DEFAULT-VALUE").Val() ?? "";
+        if (!string.IsNullOrEmpty(nrcCode))
+        {
+            var normalizedCode = NormalizeHex(nrcCode);
+            var isAutoPlaceholder = string.Equals(nrcName, $"NRC_{normalizedCode}", StringComparison.OrdinalIgnoreCase) ||
+                                    string.Equals(nrcName, $"NRC_{normalizedCode.Replace("0x", "")}", StringComparison.OrdinalIgnoreCase);
+            service.NegativeResponses.Add(isAutoPlaceholder || string.IsNullOrWhiteSpace(nrcName)
+                ? normalizedCode
+                : $"{normalizedCode} {nrcName}".Trim());
+        }
+        else if (!string.IsNullOrEmpty(nrcName))
+        {
+            service.NegativeResponses.Add(nrcName);
         }
     }
 
@@ -452,7 +821,6 @@ public class OdxXmlParser : IOdxParser
             if (int.TryParse(pEl.El("BIT-LENGTH").Val(), out var bl))
                 param.BitLength = bl;
 
-            // Coded / default value
             var codedVal = pEl.El("CODED-VALUE").Val();
             if (string.IsNullOrEmpty(codedVal))
                 codedVal = pEl.El("DEFAULT-VALUE").Val();
@@ -463,8 +831,9 @@ public class OdxXmlParser : IOdxParser
 
             param.DefaultValueHex = codedVal;
 
-            // DOP reference
             var dopRef = pEl.El("DOP-REF")?.Attr("ID-REF");
+            if (string.IsNullOrEmpty(dopRef))
+                dopRef = pEl.El("DOP-SNREF")?.Attr("SHORT-NAME");
             if (string.IsNullOrEmpty(dopRef))
                 dopRef = pEl.Attr("DOP-REF");
 
@@ -493,7 +862,9 @@ public class OdxXmlParser : IOdxParser
                 Id = dEl.Attr("ID"),
                 Description = dEl.El("TEXT").Val(),
                 DisplayCode = dEl.El("DISPLAY-TROUBLE-CODE").Val(),
-                Severity = dEl.El("SEVERITY").Val()
+                Severity = dEl.El("SEVERITY").Val(),
+                DefinedInLayer = layer.ShortName,
+                IsInherited = false
             };
 
             if (string.IsNullOrWhiteSpace(dtc.Description))
@@ -502,7 +873,6 @@ public class OdxXmlParser : IOdxParser
             if (string.IsNullOrWhiteSpace(dtc.Description))
                 dtc.Description = dEl.El("SHORT-NAME").Val();
 
-            // Trouble code integer or hex
             var codeVal = dEl.El("TROUBLE-CODE").Val();
             if (long.TryParse(codeVal, NumberStyles.Integer, CultureInfo.InvariantCulture, out var tcNum))
             {
@@ -520,13 +890,9 @@ public class OdxXmlParser : IOdxParser
                 dtc.TroubleCodeHex = codeVal;
             }
 
-            // Standard OBD/UDS alphanumeric display code derivation if missing (Pxxxx, Cxxxx, Bxxxx, Uxxxx)
             if (string.IsNullOrWhiteSpace(dtc.DisplayCode) && dtc.TroubleCode > 0)
-            {
                 dtc.DisplayCode = FormatUdsDtcCode(dtc.TroubleCode);
-            }
 
-            // Failure Type Byte (FTB) - lowest byte of 3-byte DTC
             if (dtc.TroubleCode > 0)
             {
                 var ftb = (byte)(dtc.TroubleCode & 0xFF);
@@ -537,7 +903,25 @@ public class OdxXmlParser : IOdxParser
         }
     }
 
-    private DataObjectProperty ParseDataObjectProperty(XElement dopEl)
+    private static PhysicalUnitInfo ParseUnitElement(XElement uEl)
+    {
+        var unit = new PhysicalUnitInfo
+        {
+            Id = uEl.Attr("ID"),
+            ShortName = uEl.El("SHORT-NAME").Val(),
+            DisplayName = uEl.El("DISPLAY-NAME").Val(),
+            PhysicalDimensionRef = uEl.El("PHYSICAL-DIMENSION-REF")?.Attr("ID-REF") ?? string.Empty
+        };
+
+        if (double.TryParse(uEl.El("FACTOR-SI-TO-UNIT").Val(), NumberStyles.Float, CultureInfo.InvariantCulture, out var f))
+            unit.FactorSiToUnit = f;
+        if (double.TryParse(uEl.El("OFFSET-SI-TO-UNIT").Val(), NumberStyles.Float, CultureInfo.InvariantCulture, out var o))
+            unit.OffsetSiToUnit = o;
+
+        return unit;
+    }
+
+    private DataObjectProperty ParseDataObjectProperty(XElement dopEl, Dictionary<string, PhysicalUnitInfo> units)
     {
         var dop = new DataObjectProperty
         {
@@ -550,7 +934,6 @@ public class OdxXmlParser : IOdxParser
         if (string.IsNullOrWhiteSpace(dop.Category))
             dop.Category = dopEl.El("COMPU-METHOD")?.El("CATEGORY").Val() ?? "IDENTICAL";
 
-        // Coded type
         var diagTypeEl = dopEl.Desc("DIAG-CODED-TYPE").FirstOrDefault();
         if (diagTypeEl != null)
         {
@@ -564,11 +947,22 @@ public class OdxXmlParser : IOdxParser
                 dop.BitLength = bl2;
         }
 
-        // Unit
-        var unitEl = dopEl.Desc("UNIT-SPEC").FirstOrDefault() ?? dopEl.Desc("UNIT-REF").FirstOrDefault();
-        dop.PhysicalUnit = unitEl?.Attr("ID-REF") ?? unitEl?.El("SHORT-NAME").Val() ?? string.Empty;
+        // Resolve UNIT-REF against UNIT-SPEC dictionary first, fallback to UNIT-SPEC ID-REF
+        var unitRefEl = dopEl.Desc("UNIT-REF").FirstOrDefault();
+        var unitSpecEl = dopEl.Desc("UNIT-SPEC").FirstOrDefault();
+        var rawUnitRef = unitRefEl?.Attr("ID-REF") ?? unitSpecEl?.Attr("ID-REF") ?? unitSpecEl?.El("SHORT-NAME").Val() ?? string.Empty;
 
-        // Compu-Method scaling (Factor & Offset)
+        if (!string.IsNullOrEmpty(rawUnitRef) && units.TryGetValue(rawUnitRef, out var resolvedUnit))
+        {
+            dop.PhysicalUnit = !string.IsNullOrEmpty(resolvedUnit.DisplayName)
+                ? resolvedUnit.DisplayName
+                : resolvedUnit.ShortName;
+        }
+        else
+        {
+            dop.PhysicalUnit = rawUnitRef;
+        }
+
         var compuMethod = dopEl.Desc("COMPU-METHOD").FirstOrDefault();
         if (compuMethod != null)
         {
@@ -595,7 +989,6 @@ public class OdxXmlParser : IOdxParser
                     dop.Factor = factor / divisor;
             }
 
-            // Text table entries
             foreach (var scaleEl in compuMethod.Desc("COMPU-SCALE"))
             {
                 var lowerLimit = scaleEl.El("LOWER-LIMIT")?.Val();
@@ -617,7 +1010,6 @@ public class OdxXmlParser : IOdxParser
     {
         var didMap = new Dictionary<string, DiagnosticDataIdentifier>(StringComparer.OrdinalIgnoreCase);
 
-        // Scan all services in this layer for ReadDataByIdentifier (0x22) or WriteDataByIdentifier (0x2E)
         foreach (var svc in layer.Services)
         {
             bool isReadDid = svc.ServiceIdHex.Equals("0x22", StringComparison.OrdinalIgnoreCase);
@@ -625,7 +1017,6 @@ public class OdxXmlParser : IOdxParser
 
             if (!isReadDid && !isWriteDid)
             {
-                // Check semantic
                 if (svc.Semantic.Contains("DATA-ID", StringComparison.OrdinalIgnoreCase) ||
                     svc.Semantic.Contains("IDENTIFICATION", StringComparison.OrdinalIgnoreCase))
                 {
@@ -637,7 +1028,6 @@ public class OdxXmlParser : IOdxParser
                 }
             }
 
-            // Find DID parameter from request
             var didParam = svc.RequestParameters.FirstOrDefault(p =>
                 string.Equals(p.Semantic, "DATA-ID", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(p.Semantic, "DATA-IDENTIFIER", StringComparison.OrdinalIgnoreCase) ||
@@ -651,12 +1041,9 @@ public class OdxXmlParser : IOdxParser
             }
             else
             {
-                // Try extracting hex 0xFxxx or 0x0xxx from service name (e.g., "ReadDataByIdentifier_F190")
                 var match = Regex.Match(svc.ShortName, @"(?<did>[0-9A-Fa-f]{4})");
                 if (match.Success)
-                {
                     didHex = "0x" + match.Groups["did"].Value.ToUpperInvariant();
-                }
             }
 
             if (string.IsNullOrEmpty(didHex))
@@ -672,22 +1059,27 @@ public class OdxXmlParser : IOdxParser
                     AssociatedService = svc.ShortName,
                     Description = svc.Description,
                     Access = isWriteDid ? "Write" : "Read",
-                    DataCategory = CategorizeDataIdentifier(didHex, CleanServiceNameForDid(svc.ShortName), svc.LongName, svc.Description)
+                    DataCategory = CategorizeDataIdentifier(didHex, CleanServiceNameForDid(svc.ShortName), svc.LongName, svc.Description),
+                    DefinedInLayer = layer.ShortName,
+                    IsInherited = false
                 };
 
                 if (int.TryParse(didHex.Replace("0x", ""), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var didDec))
-                {
                     did.DidDecimal = didDec;
-                }
 
-                // Find payload parameter in positive response to extract data type, scaling, units
                 var payloadParam = svc.ResponseParameters.FirstOrDefault(p =>
                     p.BytePosition >= 3 || (!string.IsNullOrEmpty(p.DopRef) && !p.Name.Contains("DID", StringComparison.OrdinalIgnoreCase)));
+                if (payloadParam == null && isWriteDid)
+                {
+                    payloadParam = svc.RequestParameters.FirstOrDefault(p =>
+                        p.BytePosition >= 3 || (!string.IsNullOrEmpty(p.DopRef) && !p.Name.Contains("DID", StringComparison.OrdinalIgnoreCase)));
+                }
 
                 if (payloadParam != null)
                 {
                     did.ByteLength = payloadParam.BitLength > 0 ? (payloadParam.BitLength + 7) / 8 : 1;
                     did.BitLength = payloadParam.BitLength;
+                    did.DopRef = payloadParam.DopRef;
 
                     if (!string.IsNullOrEmpty(payloadParam.DopRef) && dops.TryGetValue(payloadParam.DopRef, out var dop))
                     {
@@ -704,18 +1096,49 @@ public class OdxXmlParser : IOdxParser
             }
             else
             {
-                // Merge access
                 if (isWriteDid && did.Access == "Read")
                     did.Access = "Read/Write";
                 else if (isReadDid && did.Access == "Write")
                     did.Access = "Read/Write";
             }
 
-            // Sync service data category with DID category for 0x22 / 0x2E services
             if (isReadDid || isWriteDid)
-            {
                 svc.DataCategory = did.DataCategory;
+        }
+
+        // Supplement from ISO 22901-1 TABLE-ROW definitions (when DIDs are stored in a TABLE-KEY structure)
+        foreach (var row in layer.TableRows.Where(r => !string.IsNullOrEmpty(r.KeyHex)))
+        {
+            if (didMap.ContainsKey(row.KeyHex)) continue;
+
+            var did = new DiagnosticDataIdentifier
+            {
+                DidHex = row.KeyHex,
+                ShortName = row.ShortName,
+                LongName = row.LongName,
+                AssociatedService = row.TableShortName,
+                Description = row.Description,
+                Access = "Read",
+                DataCategory = CategorizeDataIdentifier(row.KeyHex, row.ShortName, row.LongName, row.Description),
+                DefinedInLayer = layer.ShortName,
+                IsInherited = false
+            };
+
+            if (int.TryParse(row.KeyHex.Replace("0x", ""), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var didDec))
+                did.DidDecimal = didDec;
+
+            if (!string.IsNullOrEmpty(row.DopRef) && dops.TryGetValue(row.DopRef, out var dop))
+            {
+                did.DopRef = row.DopRef;
+                did.DataType = dop.BaseDataType;
+                did.Unit = dop.PhysicalUnit;
+                did.ScalingFactor = dop.Factor;
+                did.Offset = dop.Offset;
+                did.BitLength = dop.BitLength;
+                did.ByteLength = dop.BitLength > 0 ? (dop.BitLength + 7) / 8 : 1;
             }
+
+            didMap[row.KeyHex] = did;
         }
 
         layer.DataIdentifiers.AddRange(didMap.Values.OrderBy(d => d.DidHex));
@@ -726,20 +1149,47 @@ public class OdxXmlParser : IOdxParser
         var compRefs = layerEl.Desc("COMPARAM-REF");
         foreach (var cRef in compRefs)
         {
-            var cp = new CommunicationParameter
-            {
-                Name = cRef.Attr("ID-REF"),
-                Value = cRef.El("VALUE")?.Val() ?? cRef.Attr("VALUE"),
-                Unit = cRef.El("UNIT")?.Val() ?? string.Empty,
-                Description = ExtractDescription(cRef)
-            };
-
-            if (string.IsNullOrWhiteSpace(cp.Name))
-                cp.Name = cRef.El("SHORT-NAME").Val();
-
+            var cp = ParseSingleComParamRef(cRef, layer.ShortName);
             if (!string.IsNullOrEmpty(cp.Name))
+            {
+                if (layer.LayerType == DiagnosticLayerType.Protocol && string.IsNullOrEmpty(cp.Protocol))
+                    cp.Protocol = layer.ShortName;
                 layer.CommunicationParameters.Add(cp);
+            }
         }
+    }
+
+    private static CommunicationParameter ParseSingleComParamRef(XElement cRef, string originLayer)
+    {
+        // ISO 22901-1 ODX 2.2 uses SIMPLE-VALUE, ODX 2.0 / custom uses VALUE or @VALUE
+        var val = cRef.El("SIMPLE-VALUE")?.Val();
+        if (string.IsNullOrEmpty(val)) val = cRef.El("VALUE")?.Val();
+        if (string.IsNullOrEmpty(val)) val = cRef.Attr("VALUE");
+        if (string.IsNullOrEmpty(val))
+            val = string.Join(" ", cRef.Desc("SIMPLE-VALUE").Select(s => s.Val()));
+
+        var name = cRef.El("SHORT-NAME").Val();
+        if (string.IsNullOrWhiteSpace(name)) name = cRef.Attr("ID-REF");
+
+        return new CommunicationParameter
+        {
+            Name = name,
+            Value = val ?? string.Empty,
+            Unit = cRef.El("UNIT")?.Val() ?? string.Empty,
+            Protocol = cRef.El("PROTOCOL-SNREF")?.Attr("SHORT-NAME") ?? string.Empty,
+            Description = ExtractDescription(cRef),
+            DefinedInLayer = originLayer,
+            IsInherited = false
+        };
+    }
+
+    private static string NormalizeAddressing(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return "Physical";
+        var u = raw.ToUpperInvariant();
+        if (u.Contains("PHYSICAL") && u.Contains("FUNCTIONAL")) return "Physical/Functional";
+        if (u.Contains("FUNCTIONAL")) return "Functional";
+        return "Physical";
     }
 
     private static string ExtractDescription(XElement el)
@@ -804,22 +1254,18 @@ public class OdxXmlParser : IOdxParser
         return string.IsNullOrWhiteSpace(cleaned) ? serviceShortName : cleaned;
     }
 
-    /// <summary>
-    /// Formats a 3-byte trouble code according to SAE J2012 / ISO 14229 standard UDS format (Pxxxx-xx).
-    /// </summary>
     private static string FormatUdsDtcCode(long code)
     {
-        // 3-byte DTC: Byte 2 = High, Byte 1 = Low, Byte 0 = Failure Type Byte (FTB)
         var highByte = (byte)((code >> 16) & 0xFF);
         var lowByte = (byte)((code >> 8) & 0xFF);
         var ftb = (byte)(code & 0xFF);
 
         char prefix = (highByte >> 6) switch
         {
-            0 => 'P', // Powertrain
-            1 => 'C', // Chassis
-            2 => 'B', // Body
-            3 => 'U', // Network
+            0 => 'P',
+            1 => 'C',
+            2 => 'B',
+            3 => 'U',
             _ => 'P'
         };
 
@@ -832,9 +1278,6 @@ public class OdxXmlParser : IOdxParser
         return ftb != 0 ? $"{baseCode}-{ftb:X2}" : baseCode;
     }
 
-    /// <summary>
-    /// Categorizes a UDS/KWP service into "Current Data", "Stored Data", or "System Control".
-    /// </summary>
     public static string CategorizeService(string serviceIdHex, string semantic, string shortName, string description = "")
     {
         var semUpper = (semantic ?? "").ToUpperInvariant().Trim();
@@ -843,7 +1286,6 @@ public class OdxXmlParser : IOdxParser
         var descUpper = (description ?? "").ToUpperInvariant().Trim();
         var combinedText = $"{nameUpper} {descUpper} {semUpper}";
 
-        // 1. Explicit ODX semantic matching
         if (semUpper.Contains("SESSION") || semUpper.Contains("SECURITY") ||
             semUpper.Contains("TESTER-PRESENT") || semUpper.Contains("TESTER_PRESENT") ||
             semUpper.Contains("ROUTINE") || semUpper.Contains("RESET") ||
@@ -873,48 +1315,41 @@ public class OdxXmlParser : IOdxParser
             return "Stored Data";
         }
 
-        // 2. Service ID classification according to ISO 14229 / SAE J1979
         switch (sidNorm)
         {
-            // Fault memory & recorded historical data
-            case "0x19": // ReadDTCInformation
-            case "0x14": // ClearDiagnosticInformation
-            case "0x85": // ControlDTCSetting
-            case "0x02": // OBD-II FreezeFrame
-            case "0x03": // OBD-II Stored DTCs
-            case "0x04": // OBD-II Clear DTCs
-            case "0x07": // OBD-II Pending DTCs
-            case "0x0A": // OBD-II Permanent DTCs
+            case "0x19":
+            case "0x14":
+            case "0x85":
+            case "0x02":
+            case "0x03":
+            case "0x04":
+            case "0x07":
+            case "0x0a":
                 return "Stored Data";
 
-            // Periodic & Dynamic Telemetry
-            case "0x2A": // ReadDataByPeriodicIdentifier
-            case "0x2C": // DynamicallyDefineDataIdentifier
-            case "0x01": // OBD-II Show Current Data
-            case "0x06": // OBD-II On-Board Monitoring Test Results
+            case "0x2a":
+            case "0x2c":
+            case "0x01":
+            case "0x06":
                 return "Current Data";
 
-            // Diagnostic session & control functions
-            case "0x10": // DiagnosticSessionControl
-            case "0x11": // ECUReset
-            case "0x27": // SecurityAccess
-            case "0x28": // CommunicationControl
-            case "0x29": // Authentication
-            case "0x31": // RoutineControl
-            case "0x3E": // TesterPresent
-            case "0x86": // ResponseOnEvent
-            case "0x87": // LinkControl
-            case "0x34": // RequestDownload
-            case "0x35": // RequestUpload
-            case "0x36": // TransferData
-            case "0x37": // RequestTransferExit
-            case "0x38": // RequestFileTransfer
+            case "0x10":
+            case "0x11":
+            case "0x27":
+            case "0x28":
+            case "0x29":
+            case "0x31":
+            case "0x3e":
+            case "0x86":
+            case "0x87":
+            case "0x34":
+            case "0x35":
+            case "0x36":
+            case "0x37":
+            case "0x38":
                 return "System Control";
         }
 
-        // 3. For 0x22 (ReadDataByIdentifier) or 0x2E (WriteDataByIdentifier) or generic DID services:
-        // Distinguish between Stored Data (VIN, Part Numbers, Serial Numbers, SW/HW Versions, Coding)
-        // vs Current Data (Engine Speed, Coolant Temp, Voltage, Pressure, Sensor values)
         if (combinedText.Contains("VIN") ||
             combinedText.Contains("IDENTIF") ||
             combinedText.Contains("PARTNUMBER") ||
@@ -937,19 +1372,18 @@ public class OdxXmlParser : IOdxParser
             combinedText.Contains("SNAPSHOT") ||
             combinedText.Contains("STORED") ||
             combinedText.Contains("FAULT") ||
+            combinedText.Contains("ISOLATION") ||
             combinedText.Contains("DTC"))
         {
             return "Stored Data";
         }
 
-        // Check for standard UDS Identification DID range 0xF180 - 0xF1FF or 0xF0xx or 0xF8xx in shortName
         var didMatch = Regex.Match(nameUpper, @"0?X?(F1[0-9A-F]{2}|F0[0-9A-F]{2}|F8[0-9A-F]{2})");
         if (didMatch.Success)
         {
             return "Stored Data";
         }
 
-        // Check for Current Data keywords (sensors, live telemetry)
         if (combinedText.Contains("CURRENT") ||
             combinedText.Contains("SPEED") ||
             combinedText.Contains("RPM") ||
@@ -964,6 +1398,7 @@ public class OdxXmlParser : IOdxParser
             combinedText.Contains("LEVEL") ||
             combinedText.Contains("FLOW") ||
             combinedText.Contains("PEDAL") ||
+            combinedText.Contains("THROTTLE") ||
             combinedText.Contains("DYNAMIC") ||
             combinedText.Contains("MEASUREMENT") ||
             combinedText.Contains("LIVE") ||
@@ -974,16 +1409,11 @@ public class OdxXmlParser : IOdxParser
         }
 
         if (sidNorm == "0x22" || sidNorm == "0x2e")
-        {
             return "Current Data";
-        }
 
         return "Current Data";
     }
 
-    /// <summary>
-    /// Categorizes a Data Identifier (DID) into "Current Data" (live sensor telemetry) or "Stored Data" (identification / snapshots).
-    /// </summary>
     public static string CategorizeDataIdentifier(string didHex, string shortName, string longName = "", string description = "")
     {
         var hexUpper = (didHex ?? "").ToUpperInvariant().Trim();
@@ -992,7 +1422,6 @@ public class OdxXmlParser : IOdxParser
         var descUpper = (description ?? "").ToUpperInvariant().Trim();
         var combined = $"{nameUpper} {longUpper} {descUpper}";
 
-        // 1. Identification keywords
         if (combined.Contains("VIN") ||
             combined.Contains("IDENTIF") ||
             combined.Contains("PART NUMBER") ||
@@ -1011,49 +1440,21 @@ public class OdxXmlParser : IOdxParser
             combined.Contains("FREEZE") ||
             combined.Contains("STORED") ||
             combined.Contains("FAULT") ||
+            combined.Contains("ISOLATION") ||
             combined.Contains("HISTORY"))
         {
             return "Stored Data";
         }
 
-        // 2. DID Hex Range according to ISO 14229-1 Annex C:
-        // 0xF180 - 0xF1FF: Identification Data Identifiers (Stored)
-        // 0xF010 - 0xF0FF: System supplier specific identification (Stored)
-        // 0xF800 - 0xF8FF: Vehicle manufacturer specific identification (Stored)
         var cleanHex = hexUpper.StartsWith("0X", StringComparison.OrdinalIgnoreCase) ? hexUpper[2..] : hexUpper;
         if (int.TryParse(cleanHex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var didNum))
         {
-            if (didNum >= 0xF100 && didNum <= 0xF1FF)
-                return "Stored Data";
-            if (didNum >= 0xF000 && didNum <= 0xF0FF)
-                return "Stored Data";
-            if (didNum >= 0xF800 && didNum <= 0xF8FF)
-                return "Stored Data";
-
-            // Standard live sensor range (0x0100 - 0x01FF OBD-II live PIDs, or 0x0200 - 0xEFFF dynamic DIDs)
-            if (didNum < 0xF000)
-                return "Current Data";
-        }
-
-        // 3. Sensor / telemetry keywords
-        if (combined.Contains("SPEED") ||
-            combined.Contains("RPM") ||
-            combined.Contains("TEMP") ||
-            combined.Contains("TEMPERATURE") ||
-            combined.Contains("VOLT") ||
-            combined.Contains("VOLTAGE") ||
-            combined.Contains("PRESSURE") ||
-            combined.Contains("SENSOR") ||
-            combined.Contains("CURRENT") ||
-            combined.Contains("DYNAMIC") ||
-            combined.Contains("LIVE") ||
-            combined.Contains("MEASUREMENT") ||
-            combined.Contains("ACTUAL"))
-        {
-            return "Current Data";
+            if (didNum >= 0xF100 && didNum <= 0xF1FF) return "Stored Data";
+            if (didNum >= 0xF000 && didNum <= 0xF0FF) return "Stored Data";
+            if (didNum >= 0xF800 && didNum <= 0xF8FF) return "Stored Data";
+            if (didNum < 0xF000) return "Current Data";
         }
 
         return "Current Data";
     }
 }
-

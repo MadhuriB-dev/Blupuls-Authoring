@@ -3,43 +3,56 @@ namespace OdxDiagnosticParser.Models;
 /// <summary>
 /// Represents a Diagnostic Trouble Code (DTC) according to ISO 14229 / SAE J2012.
 /// </summary>
-public class DiagnosticTroubleCode
+public class DiagnosticTroubleCode : ObservableModelBase
 {
-    public string Id { get; set; } = string.Empty;
+    private string _id = string.Empty;
+    private long _troubleCode;
+    private string _troubleCodeHex = string.Empty;
+    private string _displayCode = string.Empty;
+    private string _description = string.Empty;
+    private string _severity = string.Empty;
+    private string _failureTypeByte = string.Empty;
+    private string _statusMask = string.Empty;
+    private string _definedInLayer = string.Empty;
+    private bool _isInherited;
 
-    /// <summary>
-    /// Raw integer trouble code as defined in ODX (e.g. 12595219).
-    /// </summary>
-    public long TroubleCode { get; set; }
+    public string Id { get => _id; set => SetProperty(ref _id, value); }
+    public long TroubleCode { get => _troubleCode; set => SetProperty(ref _troubleCode, value); }
+    public string TroubleCodeHex { get => _troubleCodeHex; set => SetProperty(ref _troubleCodeHex, value); }
+    public string DisplayCode { get => _displayCode; set => SetProperty(ref _displayCode, value); }
+    public string Description { get => _description; set => SetProperty(ref _description, value); }
+    public string Severity { get => _severity; set => SetProperty(ref _severity, value); }
+    public string FailureTypeByte { get => _failureTypeByte; set => SetProperty(ref _failureTypeByte, value); }
+    public string StatusMask { get => _statusMask; set => SetProperty(ref _statusMask, value); }
 
-    /// <summary>
-    /// Hexadecimal trouble code representation (e.g. "0x013313").
-    /// </summary>
-    public string TroubleCodeHex { get; set; } = string.Empty;
+    public string DefinedInLayer
+    {
+        get => _definedInLayer;
+        set { if (SetProperty(ref _definedInLayer, value)) OnPropertyChanged(nameof(InheritanceScope)); }
+    }
 
-    /// <summary>
-    /// Standard alphanumeric display code (e.g. "P0133-13", "B1000", "U0100").
-    /// </summary>
-    public string DisplayCode { get; set; } = string.Empty;
+    public bool IsInherited
+    {
+        get => _isInherited;
+        set { if (SetProperty(ref _isInherited, value)) OnPropertyChanged(nameof(InheritanceScope)); }
+    }
 
-    /// <summary>
-    /// Trouble code text description (e.g. "O2 Sensor Circuit Slow Response (Bank 1, Sensor 1)").
-    /// </summary>
-    public string Description { get; set; } = string.Empty;
+    public string InheritanceScope => IsInherited ? $"Inherited ({DefinedInLayer})" : "Own";
 
-    /// <summary>
-    /// Severity level (e.g., "Information", "Warning", "Fatal").
-    /// </summary>
-    public string Severity { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Failure Type Byte (FTB) hex and description (e.g. "0x13 (Circuit open)").
-    /// </summary>
-    public string FailureTypeByte { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Status mask byte support.
-    /// </summary>
-    public string StatusMask { get; set; } = string.Empty;
+    public DiagnosticTroubleCode CloneAsInherited(string originLayerName)
+    {
+        return new DiagnosticTroubleCode
+        {
+            Id = Id,
+            TroubleCode = TroubleCode,
+            TroubleCodeHex = TroubleCodeHex,
+            DisplayCode = DisplayCode,
+            Description = Description,
+            Severity = Severity,
+            FailureTypeByte = FailureTypeByte,
+            StatusMask = StatusMask,
+            DefinedInLayer = string.IsNullOrEmpty(DefinedInLayer) ? originLayerName : DefinedInLayer,
+            IsInherited = true
+        };
+    }
 }
-

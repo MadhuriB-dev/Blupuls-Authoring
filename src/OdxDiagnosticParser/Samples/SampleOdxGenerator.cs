@@ -1,22 +1,22 @@
 using System.IO.Compression;
-using System.Security.Cryptography;
 using System.Text;
 
 namespace OdxDiagnosticParser.Samples;
 
 /// <summary>
-/// Utility to generate compliant, realistic sample ODX XML files and packaged PDX archives for testing and demonstration.
+/// Utility to generate ISO 22901-1 (ODX) and ISO 22901-2 (PDX) compliant sample ODX XML files and packaged PDX archives.
 /// </summary>
 public static class SampleOdxGenerator
 {
     /// <summary>
-    /// Generates a realistic Engine Control Unit (ECU) ODX-D XML string with UDS services, DIDs, DTCs, and DOPs.
+    /// Generates a single-layer ECU ODX-D XML string with UDS services, DIDs, DTCs, and DOPs.
     /// </summary>
     public static string CreateSampleOdxXml(string ecuName = "EngineControlUnit", string modelVersion = "2.2.0")
     {
         return $@"<?xml version=""1.0"" encoding=""utf-8""?>
 <ODX MODEL-VERSION=""{modelVersion}"" xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance"">
-  <DIAG-LAYER-CONTAINER>
+  <DIAG-LAYER-CONTAINER ID=""DLC_{ecuName}"">
+    <SHORT-NAME>DLC_{ecuName}</SHORT-NAME>
     <ECU-VARIANTS>
       <ECU-VARIANT ID=""EV_{ecuName}"">
         <SHORT-NAME>{ecuName}</SHORT-NAME>
@@ -26,7 +26,6 @@ public static class SampleOdxGenerator
         </DESC>
 
         <DIAG-DATA-DICTIONARY-SPEC>
-          <!-- DATA OBJECT PROPERTIES (DOP) -->
           <DATA-OBJECT-PROPS>
             <DATA-OBJECT-PROP ID=""DOP_VIN"" CATEGORY=""IDENTICAL"">
               <SHORT-NAME>DOP_VIN</SHORT-NAME>
@@ -43,7 +42,7 @@ public static class SampleOdxGenerator
               <COMPU-METHOD>
                 <CATEGORY>IDENTICAL</CATEGORY>
               </COMPU-METHOD>
-              <DIAG-CODED-TYPE BASE-DATA-TYPE=""A_ASCIISTRING"" BIT-LENGTH=""32"" />
+              <DIAG-CODED-TYPE BASE-DATA-TYPE=""A_ASCIISTRING"" BIT-LENGTH=""128"" />
             </DATA-OBJECT-PROP>
 
             <DATA-OBJECT-PROP ID=""DOP_ENGINE_SPEED"" CATEGORY=""LINEAR"">
@@ -149,7 +148,6 @@ public static class SampleOdxGenerator
             </DATA-OBJECT-PROP>
           </DATA-OBJECT-PROPS>
 
-          <!-- DIAGNOSTIC TROUBLE CODES (DTC) -->
           <DTC-DOPS>
             <DTC-DOP ID=""DTC_DOP_ECU"">
               <SHORT-NAME>DTC_DOP_ECU</SHORT-NAME>
@@ -198,9 +196,7 @@ public static class SampleOdxGenerator
           </DTC-DOPS>
         </DIAG-DATA-DICTIONARY-SPEC>
 
-        <!-- DIAGNOSTIC SERVICES (UDS 0x10, 0x14, 0x19, 0x22, 0x27, 0x2E, 0x3E) -->
         <DIAG-SERVICES>
-          <!-- 0x10 DiagnosticSessionControl -->
           <DIAG-SERVICE ID=""SVC_DiagnosticSessionControl"" SEMANTIC=""SESSION"">
             <SHORT-NAME>DiagnosticSessionControl</SHORT-NAME>
             <LONG-NAME>UDS Service 0x10 - Diagnostic Session Control</LONG-NAME>
@@ -236,7 +232,6 @@ public static class SampleOdxGenerator
             </POS-RESPONSE>
           </DIAG-SERVICE>
 
-          <!-- 0x27 SecurityAccess -->
           <DIAG-SERVICE ID=""SVC_SecurityAccess"" SEMANTIC=""SECURITY"">
             <SHORT-NAME>SecurityAccess</SHORT-NAME>
             <LONG-NAME>UDS Service 0x27 - Security Access</LONG-NAME>
@@ -268,7 +263,6 @@ public static class SampleOdxGenerator
             </POS-RESPONSE>
           </DIAG-SERVICE>
 
-          <!-- 0x22 ReadDataByIdentifier - VIN (0xF190) -->
           <DIAG-SERVICE ID=""SVC_Read_VIN"" SEMANTIC=""DATA-ID"">
             <SHORT-NAME>ReadDataByIdentifier_VIN</SHORT-NAME>
             <LONG-NAME>Read Vehicle Identification Number (DID 0xF190)</LONG-NAME>
@@ -310,7 +304,6 @@ public static class SampleOdxGenerator
             </POS-RESPONSE>
           </DIAG-SERVICE>
 
-          <!-- 0x2E WriteDataByIdentifier - VIN (0xF190) -->
           <DIAG-SERVICE ID=""SVC_Write_VIN"" SEMANTIC=""DATA-ID"">
             <SHORT-NAME>WriteDataByIdentifier_VIN</SHORT-NAME>
             <LONG-NAME>Write Vehicle Identification Number (DID 0xF190)</LONG-NAME>
@@ -352,7 +345,6 @@ public static class SampleOdxGenerator
             </POS-RESPONSE>
           </DIAG-SERVICE>
 
-          <!-- 0x22 ReadDataByIdentifier - Engine Speed (0x010C) -->
           <DIAG-SERVICE ID=""SVC_Read_EngineSpeed"" SEMANTIC=""DATA-ID"">
             <SHORT-NAME>ReadDataByIdentifier_EngineSpeed</SHORT-NAME>
             <LONG-NAME>Read Engine Rotational Speed (DID 0x010C)</LONG-NAME>
@@ -389,7 +381,6 @@ public static class SampleOdxGenerator
             </POS-RESPONSE>
           </DIAG-SERVICE>
 
-          <!-- 0x22 ReadDataByIdentifier - Coolant Temperature (0x0105) -->
           <DIAG-SERVICE ID=""SVC_Read_CoolantTemp"" SEMANTIC=""DATA-ID"">
             <SHORT-NAME>ReadDataByIdentifier_CoolantTemperature</SHORT-NAME>
             <LONG-NAME>Read Engine Coolant Temperature (DID 0x0105)</LONG-NAME>
@@ -426,7 +417,6 @@ public static class SampleOdxGenerator
             </POS-RESPONSE>
           </DIAG-SERVICE>
 
-          <!-- 0x22 ReadDataByIdentifier - Battery Voltage (0x0142) -->
           <DIAG-SERVICE ID=""SVC_Read_BatteryVoltage"" SEMANTIC=""DATA-ID"">
             <SHORT-NAME>ReadDataByIdentifier_BatteryVoltage</SHORT-NAME>
             <LONG-NAME>Read ECU Battery Voltage (DID 0x0142)</LONG-NAME>
@@ -463,7 +453,6 @@ public static class SampleOdxGenerator
             </POS-RESPONSE>
           </DIAG-SERVICE>
 
-          <!-- 0x14 ClearDiagnosticInformation -->
           <DIAG-SERVICE ID=""SVC_ClearDtc"" SEMANTIC=""CLEAR-DTC"">
             <SHORT-NAME>ClearDiagnosticInformation</SHORT-NAME>
             <LONG-NAME>UDS Service 0x14 - Clear Diagnostic Information</LONG-NAME>
@@ -495,7 +484,6 @@ public static class SampleOdxGenerator
             </POS-RESPONSE>
           </DIAG-SERVICE>
 
-          <!-- 0x19 ReadDTCInformation -->
           <DIAG-SERVICE ID=""SVC_ReadDtc"" SEMANTIC=""READ-DTC"">
             <SHORT-NAME>ReadDTCInformation</SHORT-NAME>
             <LONG-NAME>UDS Service 0x19 - Read DTC Information</LONG-NAME>
@@ -527,7 +515,6 @@ public static class SampleOdxGenerator
             </POS-RESPONSE>
           </DIAG-SERVICE>
 
-          <!-- 0x3E TesterPresent -->
           <DIAG-SERVICE ID=""SVC_TesterPresent"" SEMANTIC=""TESTER-PRESENT"">
             <SHORT-NAME>TesterPresent</SHORT-NAME>
             <LONG-NAME>UDS Service 0x3E - Tester Present</LONG-NAME>
@@ -555,7 +542,6 @@ public static class SampleOdxGenerator
           </DIAG-SERVICE>
         </DIAG-SERVICES>
 
-        <!-- COMMUNICATION PARAMETERS -->
         <COMPARAM-REFS>
           <COMPARAM-REF ID-REF=""CP_CanId"">
             <SHORT-NAME>CP_CanId</SHORT-NAME>
@@ -596,17 +582,73 @@ public static class SampleOdxGenerator
     }
 
     /// <summary>
-    /// Generates a realistic index.xml PDX manifest file.
+    /// Generates an ISO 22901-2 compliant index.xml PDX manifest with standard ABLOCKs, COMPANY-DATAS, DOC-REVISIONS,
+    /// as well as Vehicle/ECU summary elements.
     /// </summary>
     public static string CreateSamplePdxIndexXml(string ecuName = "EngineControlUnit", string vehicleModel = "BlueBinaries GT-2026")
     {
+        var isoNow = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss");
         return $@"<?xml version=""1.0"" encoding=""utf-8""?>
-<CATALOG MODEL-VERSION=""2.2.0"" xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance"">
+<CATALOG F-VERSION=""2.2.0"" MODEL-VERSION=""2.2.0"" xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance"">
   <SHORT-NAME>PACK_{ecuName}_V1</SHORT-NAME>
+  <LONG-NAME>ISO 22901-2 PDX Diagnostic Package - {vehicleModel} ({ecuName})</LONG-NAME>
   <VERSION>1.0.0</VERSION>
   <CREATOR>BlueBinaries Engineering Diagnostic Authoring Suite</CREATOR>
   <DATE>{DateTime.UtcNow:yyyy-MM-dd}</DATE>
-  <DESC>Complete packaged diagnostic exchange archive for {vehicleModel} {ecuName}.</DESC>
+  <DESC>ISO 22901-1 / ISO 22901-2 compliant packaged diagnostic exchange archive for {vehicleModel} {ecuName}.</DESC>
+
+  <ADMIN-DATA>
+    <LANGUAGE>en-US</LANGUAGE>
+    <DOC-REVISIONS>
+      <DOC-REVISION>
+        <REVISION-LABEL>1.0.0</REVISION-LABEL>
+        <STATE>Released</STATE>
+        <DATE>{isoNow}</DATE>
+      </DOC-REVISION>
+    </DOC-REVISIONS>
+  </ADMIN-DATA>
+
+  <COMPANY-DATAS>
+    <COMPANY-DATA ID=""CD_BlueBinaries"">
+      <SHORT-NAME>BlueBinaries</SHORT-NAME>
+      <LONG-NAME>BlueBinaries Engineering and Solutions Ltd</LONG-NAME>
+    </COMPANY-DATA>
+  </COMPANY-DATAS>
+
+  <ABLOCKS>
+    <ABLOCK>
+      <SHORT-NAME>DLC_PR_UDSonCAN</SHORT-NAME>
+      <LONG-NAME>ISO 14229-3 / ISO 15765-2 Communication Parameter Spec &amp; Protocol</LONG-NAME>
+      <CATEGORY>ODX-COMPARAM-SPEC</CATEGORY>
+      <FILES>
+        <FILE MIME-TYPE=""application/x-asam.odx.c"" CREATION-DATE=""{isoNow}"">odx-c/Protocols_UDS.odx-c</FILE>
+      </FILES>
+    </ABLOCK>
+    <ABLOCK>
+      <SHORT-NAME>DLC_SD_15765_3</SHORT-NAME>
+      <LONG-NAME>Shared Standard UDS Diagnostic Services, Units, and DOPs</LONG-NAME>
+      <CATEGORY>ODX-ECU-CONFIG</CATEGORY>
+      <FILES>
+        <FILE MIME-TYPE=""application/x-asam.odx.e"" CREATION-DATE=""{isoNow}"">odx-e/Shared_UDS_Services.odx-e</FILE>
+      </FILES>
+    </ABLOCK>
+    <ABLOCK>
+      <SHORT-NAME>DLC_{ecuName}</SHORT-NAME>
+      <LONG-NAME>{ecuName} Functional Groups, BaseVariant, and ECU Variants (ODX-D)</LONG-NAME>
+      <CATEGORY>ODX-DATA</CATEGORY>
+      <FILES>
+        <FILE MIME-TYPE=""application/x-asam.odx.d"" CREATION-DATE=""{isoNow}"">odx-d/{ecuName}.odx-d</FILE>
+      </FILES>
+    </ABLOCK>
+    <ABLOCK>
+      <SHORT-NAME>VIS_{vehicleModel.Replace(" ", "_").Replace("-", "")}</SHORT-NAME>
+      <LONG-NAME>{vehicleModel} Vehicle Topology &amp; Logical Links (ODX-V)</LONG-NAME>
+      <CATEGORY>ODX-VEHICLE-INFO</CATEGORY>
+      <FILES>
+        <FILE MIME-TYPE=""application/x-asam.odx.v"" CREATION-DATE=""{isoNow}"">odx-v/VehicleTopology.odx-v</FILE>
+      </FILES>
+    </ABLOCK>
+  </ABLOCKS>
 
   <VEHICLES>
     <VEHICLE-INFO>
@@ -625,47 +667,82 @@ public static class SampleOdxGenerator
       <DIAG-ADDRESS>0x7E0</DIAG-ADDRESS>
     </ECU-INFO>
   </ECUS>
-
-  <CATALOG-ELEMENTS>
-    <CATALOG-ELEMENT TYPE=""ODX-D"">
-      <SHORT-NAME>{ecuName}_DiagnosticLayer</SHORT-NAME>
-      <FILE-PATH>odx-d/{ecuName}.odx-d</FILE-PATH>
-      <CHECKSUM>c4ca4238a0b923820dcc509a6f75849b</CHECKSUM>
-      <FILE-SIZE>15360</FILE-SIZE>
-    </CATALOG-ELEMENT>
-    <CATALOG-ELEMENT TYPE=""ODX-C"">
-      <SHORT-NAME>Protocols_UDS_CAN</SHORT-NAME>
-      <FILE-PATH>odx-c/Protocols_UDS.odx-c</FILE-PATH>
-      <CHECKSUM>c81e728d9d4c2f636f067f89cc14862c</CHECKSUM>
-      <FILE-SIZE>4096</FILE-SIZE>
-    </CATALOG-ELEMENT>
-  </CATALOG-ELEMENTS>
 </CATALOG>";
     }
 
     /// <summary>
-    /// Generates a sample ODX-C (Diagnostic Communication / Protocol) XML.
+    /// Generates an ISO 22901-1 ODX-C Communication Parameters Spec + PROTOCOL layer XML.
     /// </summary>
     public static string CreateSampleOdxCXml()
     {
         return @"<?xml version=""1.0"" encoding=""utf-8""?>
-<ODX MODEL-VERSION=""2.2.0"">
-  <DIAG-LAYER-CONTAINER>
+<ODX MODEL-VERSION=""2.2.0"" xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance"">
+  <COMPARAM-SPEC ID=""CPS_ISO_15765_UDS"">
+    <SHORT-NAME>CPS_ISO_15765_UDS</SHORT-NAME>
+    <LONG-NAME>ISO 15765-2 / ISO 14229-3 Communication Parameter Specification</LONG-NAME>
+    <DESC><P>Standard CAN diagnostic bus and transport layer timing parameters.</P></DESC>
+    <PROT-STACKS>
+      <PROT-STACK ID=""PS_UDS_on_CAN"">
+        <SHORT-NAME>PS_UDS_on_CAN</SHORT-NAME>
+        <LONG-NAME>ISO 14229 UDS on ISO 15765-2 High-Speed CAN</LONG-NAME>
+        <PDU-PROTOCOL-TYPE>ISO_14229_3_on_ISO_15765_2</PDU-PROTOCOL-TYPE>
+        <PHYSICAL-LINK-TYPE>ISO_11898_2_DWCAN</PHYSICAL-LINK-TYPE>
+      </PROT-STACK>
+    </PROT-STACKS>
+    <COMPARAM-SUBSET ID=""CPSS_CAN_UDS"">
+      <SHORT-NAME>CPSS_CAN_UDS</SHORT-NAME>
+      <COMPARAMS>
+        <COMPARAM ID=""CP_Baudrate"" PARAM-CLASS=""BUS"">
+          <SHORT-NAME>CP_Baudrate</SHORT-NAME>
+          <PHYSICAL-DEFAULT-VALUE>500000</PHYSICAL-DEFAULT-VALUE>
+          <DESC><P>Nominal CAN bus bit rate in bps.</P></DESC>
+        </COMPARAM>
+        <COMPARAM ID=""CP_P2Max"" PARAM-CLASS=""TIMING"">
+          <SHORT-NAME>CP_P2Max</SHORT-NAME>
+          <PHYSICAL-DEFAULT-VALUE>50</PHYSICAL-DEFAULT-VALUE>
+          <DESC><P>Default P2Max server response timeout (ms).</P></DESC>
+        </COMPARAM>
+        <COMPARAM ID=""CP_P2StarMax"" PARAM-CLASS=""TIMING"">
+          <SHORT-NAME>CP_P2StarMax</SHORT-NAME>
+          <PHYSICAL-DEFAULT-VALUE>5000</PHYSICAL-DEFAULT-VALUE>
+          <DESC><P>Enhanced P2*Max response pending timeout (ms).</P></DESC>
+        </COMPARAM>
+        <COMPARAM ID=""CP_S3Client"" PARAM-CLASS=""TIMING"">
+          <SHORT-NAME>CP_S3Client</SHORT-NAME>
+          <PHYSICAL-DEFAULT-VALUE>2000</PHYSICAL-DEFAULT-VALUE>
+          <DESC><P>TesterPresent keep-alive interval S3Client (ms).</P></DESC>
+        </COMPARAM>
+        <COMPARAM ID=""CP_CanFuncReqId"" PARAM-CLASS=""ADDRESSING"">
+          <SHORT-NAME>CP_CanFuncReqId</SHORT-NAME>
+          <PHYSICAL-DEFAULT-VALUE>0x7DF</PHYSICAL-DEFAULT-VALUE>
+          <DESC><P>Standard 11-bit functional broadcast diagnostic CAN ID.</P></DESC>
+        </COMPARAM>
+      </COMPARAMS>
+    </COMPARAM-SUBSET>
+  </COMPARAM-SPEC>
+
+  <DIAG-LAYER-CONTAINER ID=""DLC_PR_UDSonCAN"">
+    <SHORT-NAME>DLC_PR_UDSonCAN</SHORT-NAME>
+    <LONG-NAME>Protocol Container for ISO 14229 UDS on CAN</LONG-NAME>
     <PROTOCOLS>
-      <PROTOCOL ID=""PROT_ISO_14229_ON_CAN"">
-        <SHORT-NAME>ISO_14229_UDS_ON_CAN</SHORT-NAME>
-        <LONG-NAME>Unified Diagnostic Services on ISO 15765-2 CAN</LONG-NAME>
-        <DESC><P>Protocol communication layer definition for 500kbps 11-bit CAN bus.</P></DESC>
+      <PROTOCOL ID=""PR_UDSonCAN"">
+        <SHORT-NAME>PR_UDSonCAN</SHORT-NAME>
+        <LONG-NAME>ISO 14229 Unified Diagnostic Services on ISO 15765-2 CAN</LONG-NAME>
+        <DESC><P>Protocol layer defining UDS-on-CAN timings, STmin, BS, and addressing defaults.</P></DESC>
+        <COMPARAM-SPEC-REF ID-REF=""CPS_ISO_15765_UDS"" DOCREF=""CPS_ISO_15765_UDS"" DOCTYPE=""COMPARAM-SPEC""/>
+        <PROT-STACK-SNREF SHORT-NAME=""PS_UDS_on_CAN""/>
         <COMPARAM-REFS>
           <COMPARAM-REF ID-REF=""CP_FunctionalRequestCanId"">
             <SHORT-NAME>CP_FunctionalRequestCanId</SHORT-NAME>
-            <VALUE>0x7DF</VALUE>
+            <SIMPLE-VALUE>0x7DF</SIMPLE-VALUE>
             <UNIT>Hex</UNIT>
+            <DESC><P>Functional broadcast CAN Request ID (OBD/UDS).</P></DESC>
           </COMPARAM-REF>
-          <COMPARAM-REF ID-REF=""CP_S3Client"">
-            <SHORT-NAME>CP_S3Client</SHORT-NAME>
-            <VALUE>2000</VALUE>
+          <COMPARAM-REF ID-REF=""CP_STminTx"">
+            <SHORT-NAME>CP_STminTx</SHORT-NAME>
+            <SIMPLE-VALUE>0</SIMPLE-VALUE>
             <UNIT>ms</UNIT>
+            <DESC><P>ISO-TP Minimum Separation Time between Consecutive Frames.</P></DESC>
           </COMPARAM-REF>
         </COMPARAM-REFS>
       </PROTOCOL>
@@ -675,7 +752,771 @@ public static class SampleOdxGenerator
     }
 
     /// <summary>
-    /// Creates a complete sample .pdx (Zip) archive file at the specified target path.
+    /// Generates an ISO 22901-1 ECU-SHARED-DATA file (Units, DOPs, and standard ISO 14229-1 control/fault services).
+    /// </summary>
+    public static string CreateSampleOdxSharedDataXml()
+    {
+        return @"<?xml version=""1.0"" encoding=""utf-8""?>
+<ODX MODEL-VERSION=""2.2.0"" xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance"">
+  <DIAG-LAYER-CONTAINER ID=""DLC_SD_15765_3"">
+    <SHORT-NAME>DLC_SD_15765_3</SHORT-NAME>
+    <LONG-NAME>Shared Standard Units, DOPs, and ISO 14229 / 15765-3 Services</LONG-NAME>
+    <ECU-SHARED-DATAS>
+      <ECU-SHARED-DATA ID=""SD_15765_3_Services"">
+        <SHORT-NAME>SD_15765_3_Services</SHORT-NAME>
+        <LONG-NAME>Standard ISO 15765-3 / UDS Shared Services &amp; Data Dictionary</LONG-NAME>
+        <DESC><P>Cross-ECU shared diagnostic layer providing standard session, security, tester present, fault clearing, units, and common DOPs.</P></DESC>
+
+        <DIAG-DATA-DICTIONARY-SPEC>
+          <UNIT-SPEC>
+            <UNITS>
+              <UNIT ID=""UNIT_RPM""><SHORT-NAME>rpm</SHORT-NAME><DISPLAY-NAME>rpm</DISPLAY-NAME></UNIT>
+              <UNIT ID=""UNIT_DEGC""><SHORT-NAME>degC</SHORT-NAME><DISPLAY-NAME>°C</DISPLAY-NAME></UNIT>
+              <UNIT ID=""UNIT_KMH""><SHORT-NAME>km_h</SHORT-NAME><DISPLAY-NAME>km/h</DISPLAY-NAME></UNIT>
+              <UNIT ID=""UNIT_VOLT""><SHORT-NAME>volt</SHORT-NAME><DISPLAY-NAME>V</DISPLAY-NAME></UNIT>
+              <UNIT ID=""UNIT_KPA""><SHORT-NAME>kPa</SHORT-NAME><DISPLAY-NAME>kPa</DISPLAY-NAME></UNIT>
+              <UNIT ID=""UNIT_PCT""><SHORT-NAME>percent</SHORT-NAME><DISPLAY-NAME>%</DISPLAY-NAME></UNIT>
+              <UNIT ID=""UNIT_NM""><SHORT-NAME>Nm</SHORT-NAME><DISPLAY-NAME>Nm</DISPLAY-NAME></UNIT>
+              <UNIT ID=""UNIT_KOHM""><SHORT-NAME>kOhm</SHORT-NAME><DISPLAY-NAME>kOhm</DISPLAY-NAME></UNIT>
+            </UNITS>
+          </UNIT-SPEC>
+
+          <DATA-OBJECT-PROPS>
+            <DATA-OBJECT-PROP ID=""DOP_VIN"" CATEGORY=""IDENTICAL"">
+              <SHORT-NAME>DOP_VIN</SHORT-NAME>
+              <LONG-NAME>Vehicle Identification Number (ISO 3779)</LONG-NAME>
+              <COMPU-METHOD><CATEGORY>IDENTICAL</CATEGORY></COMPU-METHOD>
+              <DIAG-CODED-TYPE BASE-DATA-TYPE=""A_ASCIISTRING"" BIT-LENGTH=""136"" />
+            </DATA-OBJECT-PROP>
+
+            <DATA-OBJECT-PROP ID=""DOP_SW_VERSION"" CATEGORY=""IDENTICAL"">
+              <SHORT-NAME>DOP_SW_VERSION</SHORT-NAME>
+              <LONG-NAME>Application Software Version String</LONG-NAME>
+              <COMPU-METHOD><CATEGORY>IDENTICAL</CATEGORY></COMPU-METHOD>
+              <DIAG-CODED-TYPE BASE-DATA-TYPE=""A_ASCIISTRING"" BIT-LENGTH=""128"" />
+            </DATA-OBJECT-PROP>
+          </DATA-OBJECT-PROPS>
+        </DIAG-DATA-DICTIONARY-SPEC>
+
+        <DIAG-COMMS>
+          <DIAG-SERVICE ID=""SVC_SD_SessionControl"" SEMANTIC=""SESSION"" ADDRESSING=""PHYSICAL-AND-FUNCTIONAL"">
+            <SHORT-NAME>DiagnosticSessionControl</SHORT-NAME>
+            <LONG-NAME>UDS Service 0x10 - Diagnostic Session Control</LONG-NAME>
+            <DESC><P>Switches ECU between default (0x01), programming (0x02), and extended (0x03) diagnostic sessions.</P></DESC>
+            <REQUEST>
+              <SHORT-NAME>RQ_DiagnosticSessionControl</SHORT-NAME>
+              <PARAMS>
+                <PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST"">
+                  <SHORT-NAME>SID</SHORT-NAME><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x10</CODED-VALUE>
+                </PARAM>
+                <PARAM SEMANTIC=""SUBFUNCTION"" xsi:type=""VALUE"">
+                  <SHORT-NAME>SessionType</SHORT-NAME><BYTE-POSITION>1</BYTE-POSITION><CODED-VALUE>0x01</CODED-VALUE>
+                </PARAM>
+              </PARAMS>
+            </REQUEST>
+            <POS-RESPONSES>
+              <POS-RESPONSE ID=""PR_SD_SessionControl"">
+                <SHORT-NAME>PR_DiagnosticSessionControl</SHORT-NAME>
+                <PARAMS>
+                  <PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST"">
+                    <SHORT-NAME>ResponseSID</SHORT-NAME><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x50</CODED-VALUE>
+                  </PARAM>
+                  <PARAM SEMANTIC=""SUBFUNCTION"" xsi:type=""VALUE"">
+                    <SHORT-NAME>SessionEcho</SHORT-NAME><BYTE-POSITION>1</BYTE-POSITION>
+                  </PARAM>
+                </PARAMS>
+              </POS-RESPONSE>
+            </POS-RESPONSES>
+          </DIAG-SERVICE>
+
+          <DIAG-SERVICE ID=""SVC_SD_SecurityAccess"" SEMANTIC=""SECURITY"" ADDRESSING=""PHYSICAL"">
+            <SHORT-NAME>SecurityAccess</SHORT-NAME>
+            <LONG-NAME>UDS Service 0x27 - Security Access (Seed &amp; Key)</LONG-NAME>
+            <DESC><P>Unlocks protected calibration/programming functions using seed/key challenge-response.</P></DESC>
+            <REQUEST>
+              <SHORT-NAME>RQ_SecurityAccess</SHORT-NAME>
+              <PARAMS>
+                <PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST"">
+                  <SHORT-NAME>SID</SHORT-NAME><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x27</CODED-VALUE>
+                </PARAM>
+                <PARAM SEMANTIC=""SUBFUNCTION"" xsi:type=""VALUE"">
+                  <SHORT-NAME>SecurityLevel</SHORT-NAME><BYTE-POSITION>1</BYTE-POSITION><CODED-VALUE>0x01</CODED-VALUE>
+                </PARAM>
+              </PARAMS>
+            </REQUEST>
+            <POS-RESPONSES>
+              <POS-RESPONSE ID=""PR_SD_SecurityAccess"">
+                <SHORT-NAME>PR_SecurityAccess</SHORT-NAME>
+                <PARAMS>
+                  <PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST"">
+                    <SHORT-NAME>ResponseSID</SHORT-NAME><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x67</CODED-VALUE>
+                  </PARAM>
+                </PARAMS>
+              </POS-RESPONSE>
+            </POS-RESPONSES>
+          </DIAG-SERVICE>
+
+          <DIAG-SERVICE ID=""SVC_SD_TesterPresent"" SEMANTIC=""TESTER-PRESENT"" ADDRESSING=""PHYSICAL-AND-FUNCTIONAL"">
+            <SHORT-NAME>TesterPresent</SHORT-NAME>
+            <LONG-NAME>UDS Service 0x3E - Tester Present</LONG-NAME>
+            <DESC><P>Maintains active non-default diagnostic session timer S3Server.</P></DESC>
+            <REQUEST>
+              <SHORT-NAME>RQ_TesterPresent</SHORT-NAME>
+              <PARAMS>
+                <PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST"">
+                  <SHORT-NAME>SID</SHORT-NAME><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x3E</CODED-VALUE>
+                </PARAM>
+                <PARAM SEMANTIC=""SUBFUNCTION"" xsi:type=""VALUE"">
+                  <SHORT-NAME>SubFunction</SHORT-NAME><BYTE-POSITION>1</BYTE-POSITION><CODED-VALUE>0x00</CODED-VALUE>
+                </PARAM>
+              </PARAMS>
+            </REQUEST>
+            <POS-RESPONSES>
+              <POS-RESPONSE ID=""PR_SD_TesterPresent"">
+                <SHORT-NAME>PR_TesterPresent</SHORT-NAME>
+                <PARAMS>
+                  <PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST"">
+                    <SHORT-NAME>ResponseSID</SHORT-NAME><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x7E</CODED-VALUE>
+                  </PARAM>
+                </PARAMS>
+              </POS-RESPONSE>
+            </POS-RESPONSES>
+          </DIAG-SERVICE>
+
+          <DIAG-SERVICE ID=""SVC_SD_ClearDtc"" SEMANTIC=""CLEAR-DTC"" ADDRESSING=""PHYSICAL-AND-FUNCTIONAL"">
+            <SHORT-NAME>ClearDiagnosticInformation</SHORT-NAME>
+            <LONG-NAME>UDS Service 0x14 - Clear Diagnostic Information</LONG-NAME>
+            <DESC><P>Erases stored trouble codes and freeze frames from non-volatile DTC memory.</P></DESC>
+            <REQUEST>
+              <SHORT-NAME>RQ_ClearDtc</SHORT-NAME>
+              <PARAMS>
+                <PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST"">
+                  <SHORT-NAME>SID</SHORT-NAME><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x14</CODED-VALUE>
+                </PARAM>
+                <PARAM SEMANTIC=""DATA"" xsi:type=""VALUE"">
+                  <SHORT-NAME>GroupOfDTC</SHORT-NAME><BYTE-POSITION>1</BYTE-POSITION><CODED-VALUE>0xFFFFFF</CODED-VALUE>
+                </PARAM>
+              </PARAMS>
+            </REQUEST>
+            <POS-RESPONSES>
+              <POS-RESPONSE ID=""PR_SD_ClearDtc"">
+                <SHORT-NAME>PR_ClearDtc</SHORT-NAME>
+                <PARAMS>
+                  <PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST"">
+                    <SHORT-NAME>ResponseSID</SHORT-NAME><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x54</CODED-VALUE>
+                  </PARAM>
+                </PARAMS>
+              </POS-RESPONSE>
+            </POS-RESPONSES>
+          </DIAG-SERVICE>
+
+          <DIAG-SERVICE ID=""SVC_SD_ReadDtc"" SEMANTIC=""READ-DTC"" ADDRESSING=""PHYSICAL"">
+            <SHORT-NAME>ReadDTCInformation</SHORT-NAME>
+            <LONG-NAME>UDS Service 0x19 - Read DTC Information</LONG-NAME>
+            <DESC><P>Reads stored and confirmed fault memory records by status mask.</P></DESC>
+            <REQUEST>
+              <SHORT-NAME>RQ_ReadDtc</SHORT-NAME>
+              <PARAMS>
+                <PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST"">
+                  <SHORT-NAME>SID</SHORT-NAME><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x19</CODED-VALUE>
+                </PARAM>
+                <PARAM SEMANTIC=""SUBFUNCTION"" xsi:type=""VALUE"">
+                  <SHORT-NAME>ReportType</SHORT-NAME><BYTE-POSITION>1</BYTE-POSITION><CODED-VALUE>0x02</CODED-VALUE>
+                </PARAM>
+              </PARAMS>
+            </REQUEST>
+            <POS-RESPONSES>
+              <POS-RESPONSE ID=""PR_SD_ReadDtc"">
+                <SHORT-NAME>PR_ReadDtc</SHORT-NAME>
+                <PARAMS>
+                  <PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST"">
+                    <SHORT-NAME>ResponseSID</SHORT-NAME><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x59</CODED-VALUE>
+                  </PARAM>
+                </PARAMS>
+              </POS-RESPONSE>
+            </POS-RESPONSES>
+          </DIAG-SERVICE>
+        </DIAG-COMMS>
+      </ECU-SHARED-DATA>
+    </ECU-SHARED-DATAS>
+  </DIAG-LAYER-CONTAINER>
+</ODX>";
+    }
+
+    /// <summary>
+    /// Generates an ISO 22901-1 multi-layer ODX-D file with FUNCTIONAL-GROUP, BASE-VARIANT, and concrete ECU-VARIANTs
+    /// connected via PARENT-REFS (cross-file and intra-file inheritance) plus ECU-VARIANT-PATTERNS.
+    /// </summary>
+    public static string CreateSampleIsoLayeredOdxDXml(string ecuName = "EngineControlUnit")
+    {
+        return $@"<?xml version=""1.0"" encoding=""utf-8""?>
+<ODX MODEL-VERSION=""2.2.0"" xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance"">
+  <DIAG-LAYER-CONTAINER ID=""DLC_{ecuName}"">
+    <SHORT-NAME>DLC_{ecuName}</SHORT-NAME>
+    <LONG-NAME>{ecuName} ISO 22901-1 Diagnostic Layer Container</LONG-NAME>
+
+    <!-- 1. FUNCTIONAL GROUP -->
+    <FUNCTIONAL-GROUPS>
+      <FUNCTIONAL-GROUP ID=""FG_Powertrain"">
+        <SHORT-NAME>FG_Powertrain</SHORT-NAME>
+        <LONG-NAME>Powertrain Domain Functional Broadcast Services</LONG-NAME>
+        <DESC><P>Broadcast diagnostic services addressed via functional CAN ID 0x7DF.</P></DESC>
+        <PARENT-REFS>
+          <PARENT-REF xsi:type=""PROTOCOL-REF"" ID-REF=""PR_UDSonCAN"" DOCREF=""DLC_PR_UDSonCAN"" DOCTYPE=""CONTAINER""/>
+        </PARENT-REFS>
+        <DIAG-COMMS>
+          <DIAG-SERVICE ID=""SVC_FG_ObdReadiness"" SEMANTIC=""CURRENTDATA"" ADDRESSING=""FUNCTIONAL"">
+            <SHORT-NAME>OBD_ReadCurrentPowertrainData</SHORT-NAME>
+            <LONG-NAME>SAE J1979 Service 0x01 - Functional Emissions Readiness &amp; Live PIDs</LONG-NAME>
+            <DESC><P>Functional broadcast query for powertrain emissions readiness status.</P></DESC>
+            <REQUEST>
+              <SHORT-NAME>RQ_FG_ObdReadiness</SHORT-NAME>
+              <PARAMS>
+                <PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST"">
+                  <SHORT-NAME>SID</SHORT-NAME><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x01</CODED-VALUE>
+                </PARAM>
+                <PARAM SEMANTIC=""DATA-ID"" xsi:type=""VALUE"">
+                  <SHORT-NAME>PID</SHORT-NAME><BYTE-POSITION>1</BYTE-POSITION><CODED-VALUE>0x01</CODED-VALUE>
+                </PARAM>
+              </PARAMS>
+            </REQUEST>
+            <POS-RESPONSES>
+              <POS-RESPONSE ID=""PR_FG_ObdReadiness"">
+                <SHORT-NAME>PR_FG_ObdReadiness</SHORT-NAME>
+                <PARAMS>
+                  <PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST"">
+                    <SHORT-NAME>ResponseSID</SHORT-NAME><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x41</CODED-VALUE>
+                  </PARAM>
+                </PARAMS>
+              </POS-RESPONSE>
+            </POS-RESPONSES>
+          </DIAG-SERVICE>
+        </DIAG-COMMS>
+      </FUNCTIONAL-GROUP>
+    </FUNCTIONAL-GROUPS>
+
+    <!-- 2. BASE VARIANT (Common ECU Architecture inheriting Protocol, SharedData, FunctionalGroup) -->
+    <BASE-VARIANTS>
+      <BASE-VARIANT ID=""BV_{ecuName}"">
+        <SHORT-NAME>BV_{ecuName}</SHORT-NAME>
+        <LONG-NAME>Base Variant - {ecuName} Architecture</LONG-NAME>
+        <DESC><P>Common BaseVariant for all {ecuName} hardware/calibration variants per ISO 22901-1.</P></DESC>
+        <PARENT-REFS>
+          <PARENT-REF xsi:type=""PROTOCOL-REF"" ID-REF=""PR_UDSonCAN"" DOCREF=""DLC_PR_UDSonCAN"" DOCTYPE=""CONTAINER""/>
+          <PARENT-REF xsi:type=""ECU-SHARED-DATA-REF"" ID-REF=""SD_15765_3_Services"" DOCREF=""DLC_SD_15765_3"" DOCTYPE=""CONTAINER""/>
+          <PARENT-REF xsi:type=""FUNCTIONAL-GROUP-REF"" ID-REF=""FG_Powertrain"" DOCREF=""DLC_{ecuName}"" DOCTYPE=""CONTAINER""/>
+        </PARENT-REFS>
+
+        <DIAG-DATA-DICTIONARY-SPEC>
+          <DATA-OBJECT-PROPS>
+            <DATA-OBJECT-PROP ID=""DOP_ENGINE_SPEED"" CATEGORY=""LINEAR"">
+              <SHORT-NAME>DOP_EngineSpeed</SHORT-NAME>
+              <COMPU-METHOD><CATEGORY>LINEAR</CATEGORY><COMPU-INTERNAL-TO-PHYS><COMPU-SCALES><COMPU-SCALE><COMPU-RATIONAL-COEFFS><COMPU-NUMERATOR><V>0</V><V>0.25</V></COMPU-NUMERATOR><COMPU-DENOMINATOR><V>1</V></COMPU-DENOMINATOR></COMPU-RATIONAL-COEFFS></COMPU-SCALE></COMPU-SCALES></COMPU-INTERNAL-TO-PHYS></COMPU-METHOD>
+              <DIAG-CODED-TYPE BASE-DATA-TYPE=""A_UINT32"" BIT-LENGTH=""16"" />
+              <UNIT-REF ID-REF=""UNIT_RPM"" DOCREF=""DLC_SD_15765_3"" />
+            </DATA-OBJECT-PROP>
+            <DATA-OBJECT-PROP ID=""DOP_COOLANT_TEMP"" CATEGORY=""LINEAR"">
+              <SHORT-NAME>DOP_CoolantTemp</SHORT-NAME>
+              <COMPU-METHOD><CATEGORY>LINEAR</CATEGORY><COMPU-INTERNAL-TO-PHYS><COMPU-SCALES><COMPU-SCALE><COMPU-RATIONAL-COEFFS><COMPU-NUMERATOR><V>-40</V><V>1</V></COMPU-NUMERATOR></COMPU-RATIONAL-COEFFS></COMPU-SCALE></COMPU-SCALES></COMPU-INTERNAL-TO-PHYS></COMPU-METHOD>
+              <DIAG-CODED-TYPE BASE-DATA-TYPE=""A_UINT32"" BIT-LENGTH=""8"" />
+              <UNIT-REF ID-REF=""UNIT_DEGC"" DOCREF=""DLC_SD_15765_3"" />
+            </DATA-OBJECT-PROP>
+            <DATA-OBJECT-PROP ID=""DOP_BATTERY_VOLTAGE"" CATEGORY=""LINEAR"">
+              <SHORT-NAME>DOP_BatteryVoltage</SHORT-NAME>
+              <COMPU-METHOD><CATEGORY>LINEAR</CATEGORY><COMPU-INTERNAL-TO-PHYS><COMPU-SCALES><COMPU-SCALE><COMPU-RATIONAL-COEFFS><COMPU-NUMERATOR><V>0</V><V>0.001</V></COMPU-NUMERATOR></COMPU-RATIONAL-COEFFS></COMPU-SCALE></COMPU-SCALES></COMPU-INTERNAL-TO-PHYS></COMPU-METHOD>
+              <DIAG-CODED-TYPE BASE-DATA-TYPE=""A_UINT32"" BIT-LENGTH=""16"" />
+              <UNIT-REF ID-REF=""UNIT_VOLT"" DOCREF=""DLC_SD_15765_3"" />
+            </DATA-OBJECT-PROP>
+          </DATA-OBJECT-PROPS>
+
+          <DTC-DOPS>
+            <DTC-DOP ID=""DTC_DOP_BV"">
+              <SHORT-NAME>DTC_DOP_BV</SHORT-NAME>
+              <DTCS>
+                <DTC ID=""DTC_P010013""><SHORT-NAME>DTC_P010013</SHORT-NAME><TROUBLE-CODE>65555</TROUBLE-CODE><DISPLAY-TROUBLE-CODE>P0100-13</DISPLAY-TROUBLE-CODE><TEXT>Mass or Volume Air Flow 'A' Circuit - Circuit Open</TEXT><SEVERITY>Warning</SEVERITY></DTC>
+                <DTC ID=""DTC_P011517""><SHORT-NAME>DTC_P011517</SHORT-NAME><TROUBLE-CODE>70935</TROUBLE-CODE><DISPLAY-TROUBLE-CODE>P0115-17</DISPLAY-TROUBLE-CODE><TEXT>Engine Coolant Temperature Circuit - Circuit Voltage Above Threshold</TEXT><SEVERITY>Warning</SEVERITY></DTC>
+                <DTC ID=""DTC_P030092""><SHORT-NAME>DTC_P030092</SHORT-NAME><TROUBLE-CODE>196754</TROUBLE-CODE><DISPLAY-TROUBLE-CODE>P0300-92</DISPLAY-TROUBLE-CODE><TEXT>Random or Multiple Cylinder Misfire Detected - Performance or Incorrect Operation</TEXT><SEVERITY>Fatal</SEVERITY></DTC>
+                <DTC ID=""DTC_U010087""><SHORT-NAME>DTC_U010087</SHORT-NAME><TROUBLE-CODE>12648583</TROUBLE-CODE><DISPLAY-TROUBLE-CODE>U0100-87</DISPLAY-TROUBLE-CODE><TEXT>Lost Communication With ECM/PCM 'A' - Missing Message</TEXT><SEVERITY>Fatal</SEVERITY></DTC>
+                <DTC ID=""DTC_B100016""><SHORT-NAME>DTC_B100016</SHORT-NAME><TROUBLE-CODE>9437206</TROUBLE-CODE><DISPLAY-TROUBLE-CODE>B1000-16</DISPLAY-TROUBLE-CODE><TEXT>ECU Internal Electronic Failure - Circuit Voltage Below Threshold</TEXT><SEVERITY>Fatal</SEVERITY></DTC>
+              </DTCS>
+            </DTC-DOP>
+          </DTC-DOPS>
+        </DIAG-DATA-DICTIONARY-SPEC>
+
+        <DIAG-COMMS>
+          <DIAG-SERVICE ID=""SVC_BV_ReadVIN"" SEMANTIC=""IDENTIFICATION"" ADDRESSING=""PHYSICAL"">
+            <SHORT-NAME>ReadDataByIdentifier_VIN</SHORT-NAME>
+            <LONG-NAME>Read Vehicle Identification Number (DID 0xF190)</LONG-NAME>
+            <DESC><P>Retrieves 17-character ISO 3779 VIN from EEPROM/NVM.</P></DESC>
+            <REQUEST>
+              <SHORT-NAME>RQ_Read_VIN</SHORT-NAME>
+              <PARAMS>
+                <PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST""><SHORT-NAME>SID</SHORT-NAME><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x22</CODED-VALUE></PARAM>
+                <PARAM SEMANTIC=""DATA-ID"" xsi:type=""CODED-CONST""><SHORT-NAME>DID</SHORT-NAME><BYTE-POSITION>1</BYTE-POSITION><CODED-VALUE>0xF190</CODED-VALUE></PARAM>
+              </PARAMS>
+            </REQUEST>
+            <POS-RESPONSES>
+              <POS-RESPONSE ID=""PR_BV_ReadVIN"">
+                <SHORT-NAME>PR_Read_VIN</SHORT-NAME>
+                <PARAMS>
+                  <PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST""><SHORT-NAME>ResponseSID</SHORT-NAME><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x62</CODED-VALUE></PARAM>
+                  <PARAM SEMANTIC=""DATA"" xsi:type=""VALUE"" DOP-REF=""DOP_VIN""><SHORT-NAME>VIN_Data</SHORT-NAME><BYTE-POSITION>3</BYTE-POSITION><BIT-LENGTH>136</BIT-LENGTH></PARAM>
+                </PARAMS>
+              </POS-RESPONSE>
+            </POS-RESPONSES>
+          </DIAG-SERVICE>
+
+          <DIAG-SERVICE ID=""SVC_BV_WriteVIN"" SEMANTIC=""IDENTIFICATION"" ADDRESSING=""PHYSICAL"">
+            <SHORT-NAME>WriteDataByIdentifier_VIN</SHORT-NAME>
+            <LONG-NAME>Write Vehicle Identification Number (DID 0xF190)</LONG-NAME>
+            <DESC><P>Programs 17-character VIN during End-of-Line manufacturing.</P></DESC>
+            <REQUEST>
+              <SHORT-NAME>RQ_Write_VIN</SHORT-NAME>
+              <PARAMS>
+                <PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST""><SHORT-NAME>SID</SHORT-NAME><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x2E</CODED-VALUE></PARAM>
+                <PARAM SEMANTIC=""DATA-ID"" xsi:type=""CODED-CONST""><SHORT-NAME>DID</SHORT-NAME><BYTE-POSITION>1</BYTE-POSITION><CODED-VALUE>0xF190</CODED-VALUE></PARAM>
+                <PARAM SEMANTIC=""DATA"" xsi:type=""VALUE"" DOP-REF=""DOP_VIN""><SHORT-NAME>VIN_Data</SHORT-NAME><BYTE-POSITION>3</BYTE-POSITION><BIT-LENGTH>136</BIT-LENGTH></PARAM>
+              </PARAMS>
+            </REQUEST>
+            <POS-RESPONSES>
+              <POS-RESPONSE ID=""PR_BV_WriteVIN"">
+                <SHORT-NAME>PR_Write_VIN</SHORT-NAME>
+                <PARAMS>
+                  <PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST""><SHORT-NAME>ResponseSID</SHORT-NAME><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x6E</CODED-VALUE></PARAM>
+                </PARAMS>
+              </POS-RESPONSE>
+            </POS-RESPONSES>
+          </DIAG-SERVICE>
+
+          <DIAG-SERVICE ID=""SVC_BV_ReadSwVersion"" SEMANTIC=""IDENTIFICATION"" ADDRESSING=""PHYSICAL"">
+            <SHORT-NAME>ReadDataByIdentifier_SoftwareVersion</SHORT-NAME>
+            <LONG-NAME>Read ECU Software Version (DID 0xF189)</LONG-NAME>
+            <DESC><P>Reads stored ASCII software version used for variant matching.</P></DESC>
+            <REQUEST>
+              <SHORT-NAME>RQ_Read_SwVersion</SHORT-NAME>
+              <PARAMS>
+                <PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST""><SHORT-NAME>SID</SHORT-NAME><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x22</CODED-VALUE></PARAM>
+                <PARAM SEMANTIC=""DATA-ID"" xsi:type=""CODED-CONST""><SHORT-NAME>DID</SHORT-NAME><BYTE-POSITION>1</BYTE-POSITION><CODED-VALUE>0xF189</CODED-VALUE></PARAM>
+              </PARAMS>
+            </REQUEST>
+            <POS-RESPONSES>
+              <POS-RESPONSE ID=""PR_BV_ReadSwVersion"">
+                <SHORT-NAME>PR_Read_SwVersion</SHORT-NAME>
+                <PARAMS>
+                  <PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST""><SHORT-NAME>ResponseSID</SHORT-NAME><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x62</CODED-VALUE></PARAM>
+                  <PARAM SEMANTIC=""DATA"" xsi:type=""VALUE"" DOP-REF=""DOP_SW_VERSION""><SHORT-NAME>SW_Version</SHORT-NAME><BYTE-POSITION>3</BYTE-POSITION><BIT-LENGTH>128</BIT-LENGTH></PARAM>
+                </PARAMS>
+              </POS-RESPONSE>
+            </POS-RESPONSES>
+          </DIAG-SERVICE>
+
+          <DIAG-SERVICE ID=""SVC_BV_ReadEngineSpeed"" SEMANTIC=""CURRENTDATA"" ADDRESSING=""PHYSICAL"">
+            <SHORT-NAME>ReadDataByIdentifier_EngineSpeed</SHORT-NAME>
+            <LONG-NAME>Read Engine Rotational Speed (DID 0x010C)</LONG-NAME>
+            <DESC><P>Current engine crankshaft speed in RPM.</P></DESC>
+            <REQUEST>
+              <SHORT-NAME>RQ_Read_EngineSpeed</SHORT-NAME>
+              <PARAMS>
+                <PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST""><SHORT-NAME>SID</SHORT-NAME><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x22</CODED-VALUE></PARAM>
+                <PARAM SEMANTIC=""DATA-ID"" xsi:type=""CODED-CONST""><SHORT-NAME>DID</SHORT-NAME><BYTE-POSITION>1</BYTE-POSITION><CODED-VALUE>0x010C</CODED-VALUE></PARAM>
+              </PARAMS>
+            </REQUEST>
+            <POS-RESPONSES>
+              <POS-RESPONSE ID=""PR_BV_ReadEngineSpeed"">
+                <SHORT-NAME>PR_Read_EngineSpeed</SHORT-NAME>
+                <PARAMS>
+                  <PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST""><SHORT-NAME>ResponseSID</SHORT-NAME><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x62</CODED-VALUE></PARAM>
+                  <PARAM SEMANTIC=""DATA"" xsi:type=""VALUE"" DOP-REF=""DOP_ENGINE_SPEED""><SHORT-NAME>EngineSpeed_Data</SHORT-NAME><BYTE-POSITION>3</BYTE-POSITION><BIT-LENGTH>16</BIT-LENGTH></PARAM>
+                </PARAMS>
+              </POS-RESPONSE>
+            </POS-RESPONSES>
+          </DIAG-SERVICE>
+
+          <DIAG-SERVICE ID=""SVC_BV_ReadCoolantTemp"" SEMANTIC=""CURRENTDATA"" ADDRESSING=""PHYSICAL"">
+            <SHORT-NAME>ReadDataByIdentifier_CoolantTemperature</SHORT-NAME>
+            <LONG-NAME>Read Engine Coolant Temperature (DID 0x0105)</LONG-NAME>
+            <DESC><P>Current engine coolant sensor temperature.</P></DESC>
+            <REQUEST>
+              <SHORT-NAME>RQ_Read_CoolantTemp</SHORT-NAME>
+              <PARAMS>
+                <PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST""><SHORT-NAME>SID</SHORT-NAME><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x22</CODED-VALUE></PARAM>
+                <PARAM SEMANTIC=""DATA-ID"" xsi:type=""CODED-CONST""><SHORT-NAME>DID</SHORT-NAME><BYTE-POSITION>1</BYTE-POSITION><CODED-VALUE>0x0105</CODED-VALUE></PARAM>
+              </PARAMS>
+            </REQUEST>
+            <POS-RESPONSES>
+              <POS-RESPONSE ID=""PR_BV_ReadCoolantTemp"">
+                <SHORT-NAME>PR_Read_CoolantTemp</SHORT-NAME>
+                <PARAMS>
+                  <PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST""><SHORT-NAME>ResponseSID</SHORT-NAME><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x62</CODED-VALUE></PARAM>
+                  <PARAM SEMANTIC=""DATA"" xsi:type=""VALUE"" DOP-REF=""DOP_COOLANT_TEMP""><SHORT-NAME>CoolantTemp_Data</SHORT-NAME><BYTE-POSITION>3</BYTE-POSITION><BIT-LENGTH>8</BIT-LENGTH></PARAM>
+                </PARAMS>
+              </POS-RESPONSE>
+            </POS-RESPONSES>
+          </DIAG-SERVICE>
+
+          <DIAG-SERVICE ID=""SVC_BV_ReadBatteryVoltage"" SEMANTIC=""CURRENTDATA"" ADDRESSING=""PHYSICAL"">
+            <SHORT-NAME>ReadDataByIdentifier_BatteryVoltage</SHORT-NAME>
+            <LONG-NAME>Read ECU Supply Battery Voltage (DID 0x0142)</LONG-NAME>
+            <DESC><P>Live Terminal 30 battery voltage telemetry.</P></DESC>
+            <REQUEST>
+              <SHORT-NAME>RQ_Read_BatteryVoltage</SHORT-NAME>
+              <PARAMS>
+                <PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST""><SHORT-NAME>SID</SHORT-NAME><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x22</CODED-VALUE></PARAM>
+                <PARAM SEMANTIC=""DATA-ID"" xsi:type=""CODED-CONST""><SHORT-NAME>DID</SHORT-NAME><BYTE-POSITION>1</BYTE-POSITION><CODED-VALUE>0x0142</CODED-VALUE></PARAM>
+              </PARAMS>
+            </REQUEST>
+            <POS-RESPONSES>
+              <POS-RESPONSE ID=""PR_BV_ReadBatteryVoltage"">
+                <SHORT-NAME>PR_Read_BatteryVoltage</SHORT-NAME>
+                <PARAMS>
+                  <PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST""><SHORT-NAME>ResponseSID</SHORT-NAME><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x62</CODED-VALUE></PARAM>
+                  <PARAM SEMANTIC=""DATA"" xsi:type=""VALUE"" DOP-REF=""DOP_BATTERY_VOLTAGE""><SHORT-NAME>BatteryVoltage_Data</SHORT-NAME><BYTE-POSITION>3</BYTE-POSITION><BIT-LENGTH>16</BIT-LENGTH></PARAM>
+                </PARAMS>
+              </POS-RESPONSE>
+            </POS-RESPONSES>
+          </DIAG-SERVICE>
+        </DIAG-COMMS>
+
+        <COMPARAM-REFS>
+          <COMPARAM-REF ID-REF=""CP_CanId""><SHORT-NAME>CP_CanId</SHORT-NAME><SIMPLE-VALUE>0x7E0</SIMPLE-VALUE><UNIT>Hex</UNIT><DESC><P>Physical TX Request CAN ID</P></DESC></COMPARAM-REF>
+          <COMPARAM-REF ID-REF=""CP_CanIdRx""><SHORT-NAME>CP_CanIdRx</SHORT-NAME><SIMPLE-VALUE>0x7E8</SIMPLE-VALUE><UNIT>Hex</UNIT><DESC><P>Physical RX Response CAN ID</P></DESC></COMPARAM-REF>
+        </COMPARAM-REFS>
+      </BASE-VARIANT>
+    </BASE-VARIANTS>
+
+    <!-- 3. ECU VARIANTS (Inheriting from BV_{ecuName} + adding concrete variant services & identification patterns) -->
+    <ECU-VARIANTS>
+      <!-- Variant A: Gasoline Turbo GDI -->
+      <ECU-VARIANT ID=""EV_{ecuName}_Gasoline"">
+        <SHORT-NAME>{ecuName}_Gasoline</SHORT-NAME>
+        <LONG-NAME>{ecuName} 2.0L Turbo Gasoline Direct Injection Variant</LONG-NAME>
+        <DESC><P>Concrete ECU Variant for Gasoline GDI powertrain calibration.</P></DESC>
+
+        <PARENT-REFS>
+          <PARENT-REF xsi:type=""BASE-VARIANT-REF"" ID-REF=""BV_{ecuName}"" DOCREF=""DLC_{ecuName}"" DOCTYPE=""CONTAINER""/>
+        </PARENT-REFS>
+
+        <ECU-VARIANT-PATTERNS>
+          <ECU-VARIANT-PATTERN>
+            <SHORT-NAME>Pat_Gasoline_SW</SHORT-NAME>
+            <MATCHING-PARAMETERS>
+              <MATCHING-PARAMETER>
+                <EXPECTED-VALUE>EMS_GT26_GAS_V2</EXPECTED-VALUE>
+                <DIAG-COMM-SNREF SHORT-NAME=""ReadDataByIdentifier_SoftwareVersion""/>
+                <OUT-PARAM-IF-SNREF SHORT-NAME=""SW_Version""/>
+              </MATCHING-PARAMETER>
+            </MATCHING-PARAMETERS>
+          </ECU-VARIANT-PATTERN>
+        </ECU-VARIANT-PATTERNS>
+
+        <DIAG-DATA-DICTIONARY-SPEC>
+          <DATA-OBJECT-PROPS>
+            <DATA-OBJECT-PROP ID=""DOP_FUEL_PRESSURE"" CATEGORY=""LINEAR"">
+              <SHORT-NAME>DOP_FuelRailPressure</SHORT-NAME>
+              <COMPU-METHOD><CATEGORY>LINEAR</CATEGORY><COMPU-INTERNAL-TO-PHYS><COMPU-SCALES><COMPU-SCALE><COMPU-RATIONAL-COEFFS><COMPU-NUMERATOR><V>0</V><V>10</V></COMPU-NUMERATOR></COMPU-RATIONAL-COEFFS></COMPU-SCALE></COMPU-SCALES></COMPU-INTERNAL-TO-PHYS></COMPU-METHOD>
+              <DIAG-CODED-TYPE BASE-DATA-TYPE=""A_UINT32"" BIT-LENGTH=""16"" />
+              <UNIT-REF ID-REF=""UNIT_KPA"" DOCREF=""DLC_SD_15765_3"" />
+            </DATA-OBJECT-PROP>
+            <DATA-OBJECT-PROP ID=""DOP_THROTTLE_POS"" CATEGORY=""LINEAR"">
+              <SHORT-NAME>DOP_ThrottlePos</SHORT-NAME>
+              <COMPU-METHOD><CATEGORY>LINEAR</CATEGORY><COMPU-INTERNAL-TO-PHYS><COMPU-SCALES><COMPU-SCALE><COMPU-RATIONAL-COEFFS><COMPU-NUMERATOR><V>0</V><V>0.392</V></COMPU-NUMERATOR></COMPU-RATIONAL-COEFFS></COMPU-SCALE></COMPU-SCALES></COMPU-INTERNAL-TO-PHYS></COMPU-METHOD>
+              <DIAG-CODED-TYPE BASE-DATA-TYPE=""A_UINT32"" BIT-LENGTH=""8"" />
+              <UNIT-REF ID-REF=""UNIT_PCT"" DOCREF=""DLC_SD_15765_3"" />
+            </DATA-OBJECT-PROP>
+            <DATA-OBJECT-PROP ID=""DOP_INJECTOR_CODE"" CATEGORY=""IDENTICAL"">
+              <SHORT-NAME>DOP_InjectorCoding</SHORT-NAME>
+              <COMPU-METHOD><CATEGORY>IDENTICAL</CATEGORY></COMPU-METHOD>
+              <DIAG-CODED-TYPE BASE-DATA-TYPE=""A_BYTEFIELD"" BIT-LENGTH=""64"" />
+            </DATA-OBJECT-PROP>
+          </DATA-OBJECT-PROPS>
+          <DTC-DOPS>
+            <DTC-DOP ID=""DTC_DOP_GAS"">
+              <SHORT-NAME>DTC_DOP_GAS</SHORT-NAME>
+              <DTCS>
+                <DTC ID=""DTC_P008717""><SHORT-NAME>DTC_P008717</SHORT-NAME><TROUBLE-CODE>34583</TROUBLE-CODE><DISPLAY-TROUBLE-CODE>P0087-17</DISPLAY-TROUBLE-CODE><TEXT>Fuel Rail/System Pressure Too Low (GDI High-Pressure Pump)</TEXT><SEVERITY>Fatal</SEVERITY></DTC>
+              </DTCS>
+            </DTC-DOP>
+          </DTC-DOPS>
+        </DIAG-DATA-DICTIONARY-SPEC>
+
+        <DIAG-COMMS>
+          <DIAG-SERVICE ID=""SVC_EV_ReadFuelPressure"" SEMANTIC=""CURRENTDATA"" ADDRESSING=""PHYSICAL"">
+            <SHORT-NAME>ReadDataByIdentifier_FuelRailPressure</SHORT-NAME>
+            <LONG-NAME>Read GDI Fuel Rail Pressure (DID 0x0123)</LONG-NAME>
+            <DESC><P>Live high-pressure GDI rail pressure telemetry in kPa.</P></DESC>
+            <REQUEST>
+              <SHORT-NAME>RQ_ReadFuelPressure</SHORT-NAME>
+              <PARAMS>
+                <PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST""><SHORT-NAME>SID</SHORT-NAME><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x22</CODED-VALUE></PARAM>
+                <PARAM SEMANTIC=""DATA-ID"" xsi:type=""CODED-CONST""><SHORT-NAME>DID</SHORT-NAME><BYTE-POSITION>1</BYTE-POSITION><CODED-VALUE>0x0123</CODED-VALUE></PARAM>
+              </PARAMS>
+            </REQUEST>
+            <POS-RESPONSES>
+              <POS-RESPONSE ID=""PR_EV_ReadFuelPressure"">
+                <SHORT-NAME>PR_ReadFuelPressure</SHORT-NAME>
+                <PARAMS>
+                  <PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST""><SHORT-NAME>ResponseSID</SHORT-NAME><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x62</CODED-VALUE></PARAM>
+                  <PARAM SEMANTIC=""DATA"" xsi:type=""VALUE"" DOP-REF=""DOP_FUEL_PRESSURE""><SHORT-NAME>FuelRailPressure_Data</SHORT-NAME><BYTE-POSITION>3</BYTE-POSITION><BIT-LENGTH>16</BIT-LENGTH></PARAM>
+                </PARAMS>
+              </POS-RESPONSE>
+            </POS-RESPONSES>
+          </DIAG-SERVICE>
+
+          <DIAG-SERVICE ID=""SVC_EV_ReadThrottlePos"" SEMANTIC=""CURRENTDATA"" ADDRESSING=""PHYSICAL"">
+            <SHORT-NAME>ReadDataByIdentifier_ThrottlePosition</SHORT-NAME>
+            <LONG-NAME>Read Electronic Throttle Position (DID 0x0111)</LONG-NAME>
+            <DESC><P>Live electronic throttle valve opening percentage.</P></DESC>
+            <REQUEST>
+              <SHORT-NAME>RQ_ReadThrottlePos</SHORT-NAME>
+              <PARAMS>
+                <PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST""><SHORT-NAME>SID</SHORT-NAME><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x22</CODED-VALUE></PARAM>
+                <PARAM SEMANTIC=""DATA-ID"" xsi:type=""CODED-CONST""><SHORT-NAME>DID</SHORT-NAME><BYTE-POSITION>1</BYTE-POSITION><CODED-VALUE>0x0111</CODED-VALUE></PARAM>
+              </PARAMS>
+            </REQUEST>
+            <POS-RESPONSES>
+              <POS-RESPONSE ID=""PR_EV_ReadThrottlePos"">
+                <SHORT-NAME>PR_ReadThrottlePos</SHORT-NAME>
+                <PARAMS>
+                  <PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST""><SHORT-NAME>ResponseSID</SHORT-NAME><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x62</CODED-VALUE></PARAM>
+                  <PARAM SEMANTIC=""DATA"" xsi:type=""VALUE"" DOP-REF=""DOP_THROTTLE_POS""><SHORT-NAME>ThrottlePosition_Data</SHORT-NAME><BYTE-POSITION>3</BYTE-POSITION><BIT-LENGTH>8</BIT-LENGTH></PARAM>
+                </PARAMS>
+              </POS-RESPONSE>
+            </POS-RESPONSES>
+          </DIAG-SERVICE>
+
+          <DIAG-SERVICE ID=""SVC_EV_WriteInjectorCoding"" SEMANTIC=""CODING"" ADDRESSING=""PHYSICAL"">
+            <SHORT-NAME>WriteDataByIdentifier_InjectorCoding</SHORT-NAME>
+            <LONG-NAME>Write GDI Injector IMA Coding (DID 0xF1A2)</LONG-NAME>
+            <DESC><P>Programs stored injector flow trim coding into ECU EEPROM.</P></DESC>
+            <REQUEST>
+              <SHORT-NAME>RQ_WriteInjectorCoding</SHORT-NAME>
+              <PARAMS>
+                <PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST""><SHORT-NAME>SID</SHORT-NAME><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x2E</CODED-VALUE></PARAM>
+                <PARAM SEMANTIC=""DATA-ID"" xsi:type=""CODED-CONST""><SHORT-NAME>DID</SHORT-NAME><BYTE-POSITION>1</BYTE-POSITION><CODED-VALUE>0xF1A2</CODED-VALUE></PARAM>
+                <PARAM SEMANTIC=""DATA"" xsi:type=""VALUE"" DOP-REF=""DOP_INJECTOR_CODE""><SHORT-NAME>InjectorIMA</SHORT-NAME><BYTE-POSITION>3</BYTE-POSITION><BIT-LENGTH>64</BIT-LENGTH></PARAM>
+              </PARAMS>
+            </REQUEST>
+            <POS-RESPONSES>
+              <POS-RESPONSE ID=""PR_EV_WriteInjectorCoding"">
+                <SHORT-NAME>PR_WriteInjectorCoding</SHORT-NAME>
+                <PARAMS>
+                  <PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST""><SHORT-NAME>ResponseSID</SHORT-NAME><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x6E</CODED-VALUE></PARAM>
+                </PARAMS>
+              </POS-RESPONSE>
+            </POS-RESPONSES>
+          </DIAG-SERVICE>
+
+          <DIAG-SERVICE ID=""SVC_EV_RoutineCylinderTest"" SEMANTIC=""ROUTINE"" ADDRESSING=""PHYSICAL"">
+            <SHORT-NAME>RoutineControl_CylinderBalanceTest</SHORT-NAME>
+            <LONG-NAME>UDS Service 0x31 - GDI Cylinder Contribution Balance Test</LONG-NAME>
+            <DESC><P>Executes active diagnostic test routine for cylinder combustion balance.</P></DESC>
+            <REQUEST>
+              <SHORT-NAME>RQ_RoutineCylinderTest</SHORT-NAME>
+              <PARAMS>
+                <PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST""><SHORT-NAME>SID</SHORT-NAME><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x31</CODED-VALUE></PARAM>
+                <PARAM SEMANTIC=""SUBFUNCTION"" xsi:type=""VALUE""><SHORT-NAME>SubFunction</SHORT-NAME><BYTE-POSITION>1</BYTE-POSITION><CODED-VALUE>0x01</CODED-VALUE></PARAM>
+                <PARAM SEMANTIC=""ID"" xsi:type=""CODED-CONST""><SHORT-NAME>RoutineIdentifier</SHORT-NAME><BYTE-POSITION>2</BYTE-POSITION><CODED-VALUE>0x0201</CODED-VALUE></PARAM>
+              </PARAMS>
+            </REQUEST>
+            <POS-RESPONSES>
+              <POS-RESPONSE ID=""PR_EV_RoutineCylinderTest"">
+                <SHORT-NAME>PR_RoutineCylinderTest</SHORT-NAME>
+                <PARAMS>
+                  <PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST""><SHORT-NAME>ResponseSID</SHORT-NAME><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x71</CODED-VALUE></PARAM>
+                </PARAMS>
+              </POS-RESPONSE>
+            </POS-RESPONSES>
+          </DIAG-SERVICE>
+        </DIAG-COMMS>
+      </ECU-VARIANT>
+
+      <!-- Variant B: Hybrid PHEV Powertrain -->
+      <ECU-VARIANT ID=""EV_{ecuName}_Hybrid"">
+        <SHORT-NAME>{ecuName}_Hybrid</SHORT-NAME>
+        <LONG-NAME>{ecuName} Plug-In Hybrid (PHEV) Supervisory Variant</LONG-NAME>
+        <DESC><P>Concrete ECU Variant for Hybrid / Electrified Powertrain.</P></DESC>
+
+        <PARENT-REFS>
+          <PARENT-REF xsi:type=""BASE-VARIANT-REF"" ID-REF=""BV_{ecuName}"" DOCREF=""DLC_{ecuName}"" DOCTYPE=""CONTAINER""/>
+        </PARENT-REFS>
+
+        <ECU-VARIANT-PATTERNS>
+          <ECU-VARIANT-PATTERN>
+            <SHORT-NAME>Pat_Hybrid_SW</SHORT-NAME>
+            <MATCHING-PARAMETERS>
+              <MATCHING-PARAMETER>
+                <EXPECTED-VALUE>EMS_GT26_HEV_V2</EXPECTED-VALUE>
+                <DIAG-COMM-SNREF SHORT-NAME=""ReadDataByIdentifier_SoftwareVersion""/>
+                <OUT-PARAM-IF-SNREF SHORT-NAME=""SW_Version""/>
+              </MATCHING-PARAMETER>
+            </MATCHING-PARAMETERS>
+          </ECU-VARIANT-PATTERN>
+        </ECU-VARIANT-PATTERNS>
+
+        <DIAG-DATA-DICTIONARY-SPEC>
+          <DATA-OBJECT-PROPS>
+            <DATA-OBJECT-PROP ID=""DOP_HV_SOC"" CATEGORY=""LINEAR"">
+              <SHORT-NAME>DOP_HV_SOC</SHORT-NAME>
+              <COMPU-METHOD><CATEGORY>LINEAR</CATEGORY><COMPU-INTERNAL-TO-PHYS><COMPU-SCALES><COMPU-SCALE><COMPU-RATIONAL-COEFFS><COMPU-NUMERATOR><V>0</V><V>0.5</V></COMPU-NUMERATOR></COMPU-RATIONAL-COEFFS></COMPU-SCALE></COMPU-SCALES></COMPU-INTERNAL-TO-PHYS></COMPU-METHOD>
+              <DIAG-CODED-TYPE BASE-DATA-TYPE=""A_UINT32"" BIT-LENGTH=""8"" />
+              <UNIT-REF ID-REF=""UNIT_PCT"" DOCREF=""DLC_SD_15765_3"" />
+            </DATA-OBJECT-PROP>
+            <DATA-OBJECT-PROP ID=""DOP_EMOTOR_TORQUE"" CATEGORY=""LINEAR"">
+              <SHORT-NAME>DOP_EMotorTorque</SHORT-NAME>
+              <COMPU-METHOD><CATEGORY>LINEAR</CATEGORY><COMPU-INTERNAL-TO-PHYS><COMPU-SCALES><COMPU-SCALE><COMPU-RATIONAL-COEFFS><COMPU-NUMERATOR><V>-500</V><V>0.5</V></COMPU-NUMERATOR></COMPU-RATIONAL-COEFFS></COMPU-SCALE></COMPU-SCALES></COMPU-INTERNAL-TO-PHYS></COMPU-METHOD>
+              <DIAG-CODED-TYPE BASE-DATA-TYPE=""A_UINT32"" BIT-LENGTH=""16"" />
+              <UNIT-REF ID-REF=""UNIT_NM"" DOCREF=""DLC_SD_15765_3"" />
+            </DATA-OBJECT-PROP>
+            <DATA-OBJECT-PROP ID=""DOP_HV_ISOLATION"" CATEGORY=""LINEAR"">
+              <SHORT-NAME>DOP_HVIsolation</SHORT-NAME>
+              <COMPU-METHOD><CATEGORY>LINEAR</CATEGORY><COMPU-INTERNAL-TO-PHYS><COMPU-SCALES><COMPU-SCALE><COMPU-RATIONAL-COEFFS><COMPU-NUMERATOR><V>0</V><V>1</V></COMPU-NUMERATOR></COMPU-RATIONAL-COEFFS></COMPU-SCALE></COMPU-SCALES></COMPU-INTERNAL-TO-PHYS></COMPU-METHOD>
+              <DIAG-CODED-TYPE BASE-DATA-TYPE=""A_UINT32"" BIT-LENGTH=""16"" />
+              <UNIT-REF ID-REF=""UNIT_KOHM"" DOCREF=""DLC_SD_15765_3"" />
+            </DATA-OBJECT-PROP>
+          </DATA-OBJECT-PROPS>
+          <DTC-DOPS>
+            <DTC-DOP ID=""DTC_DOP_HEV"">
+              <SHORT-NAME>DTC_DOP_HEV</SHORT-NAME>
+              <DTCS>
+                <DTC ID=""DTC_P0A1F00""><SHORT-NAME>DTC_P0A1F00</SHORT-NAME><TROUBLE-CODE>663344</TROUBLE-CODE><DISPLAY-TROUBLE-CODE>P0A1F-00</DISPLAY-TROUBLE-CODE><TEXT>Battery Energy Control Module High-Voltage Interlock Fault</TEXT><SEVERITY>Fatal</SEVERITY></DTC>
+              </DTCS>
+            </DTC-DOP>
+          </DTC-DOPS>
+        </DIAG-DATA-DICTIONARY-SPEC>
+
+        <DIAG-COMMS>
+          <DIAG-SERVICE ID=""SVC_HEV_ReadHvSoc"" SEMANTIC=""CURRENTDATA"" ADDRESSING=""PHYSICAL"">
+            <SHORT-NAME>ReadDataByIdentifier_HV_BatterySOC</SHORT-NAME>
+            <LONG-NAME>Read High-Voltage Battery State of Charge (DID 0x2001)</LONG-NAME>
+            <DESC><P>Live traction battery State-of-Charge percentage.</P></DESC>
+            <REQUEST>
+              <SHORT-NAME>RQ_ReadHvSoc</SHORT-NAME>
+              <PARAMS>
+                <PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST""><SHORT-NAME>SID</SHORT-NAME><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x22</CODED-VALUE></PARAM>
+                <PARAM SEMANTIC=""DATA-ID"" xsi:type=""CODED-CONST""><SHORT-NAME>DID</SHORT-NAME><BYTE-POSITION>1</BYTE-POSITION><CODED-VALUE>0x2001</CODED-VALUE></PARAM>
+              </PARAMS>
+            </REQUEST>
+            <POS-RESPONSES>
+              <POS-RESPONSE ID=""PR_HEV_ReadHvSoc"">
+                <SHORT-NAME>PR_ReadHvSoc</SHORT-NAME>
+                <PARAMS>
+                  <PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST""><SHORT-NAME>ResponseSID</SHORT-NAME><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x62</CODED-VALUE></PARAM>
+                  <PARAM SEMANTIC=""DATA"" xsi:type=""VALUE"" DOP-REF=""DOP_HV_SOC""><SHORT-NAME>HV_SOC_Data</SHORT-NAME><BYTE-POSITION>3</BYTE-POSITION><BIT-LENGTH>8</BIT-LENGTH></PARAM>
+                </PARAMS>
+              </POS-RESPONSE>
+            </POS-RESPONSES>
+          </DIAG-SERVICE>
+
+          <DIAG-SERVICE ID=""SVC_HEV_ReadEMotorTorque"" SEMANTIC=""CURRENTDATA"" ADDRESSING=""PHYSICAL"">
+            <SHORT-NAME>ReadDataByIdentifier_EMotorTorque</SHORT-NAME>
+            <LONG-NAME>Read Electric Traction Motor Torque (DID 0x2002)</LONG-NAME>
+            <DESC><P>Live electric drive motor actual torque in Nm.</P></DESC>
+            <REQUEST>
+              <SHORT-NAME>RQ_ReadEMotorTorque</SHORT-NAME>
+              <PARAMS>
+                <PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST""><SHORT-NAME>SID</SHORT-NAME><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x22</CODED-VALUE></PARAM>
+                <PARAM SEMANTIC=""DATA-ID"" xsi:type=""CODED-CONST""><SHORT-NAME>DID</SHORT-NAME><BYTE-POSITION>1</BYTE-POSITION><CODED-VALUE>0x2002</CODED-VALUE></PARAM>
+              </PARAMS>
+            </REQUEST>
+            <POS-RESPONSES>
+              <POS-RESPONSE ID=""PR_HEV_ReadEMotorTorque"">
+                <SHORT-NAME>PR_ReadEMotorTorque</SHORT-NAME>
+                <PARAMS>
+                  <PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST""><SHORT-NAME>ResponseSID</SHORT-NAME><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x62</CODED-VALUE></PARAM>
+                  <PARAM SEMANTIC=""DATA"" xsi:type=""VALUE"" DOP-REF=""DOP_EMOTOR_TORQUE""><SHORT-NAME>EMotorTorque_Data</SHORT-NAME><BYTE-POSITION>3</BYTE-POSITION><BIT-LENGTH>16</BIT-LENGTH></PARAM>
+                </PARAMS>
+              </POS-RESPONSE>
+            </POS-RESPONSES>
+          </DIAG-SERVICE>
+
+          <DIAG-SERVICE ID=""SVC_HEV_ReadIsolation"" SEMANTIC=""STOREDDATA"" ADDRESSING=""PHYSICAL"">
+            <SHORT-NAME>ReadDataByIdentifier_HV_IsolationResistance</SHORT-NAME>
+            <LONG-NAME>Read Last Recorded HV Isolation Resistance (DID 0xF1B5)</LONG-NAME>
+            <DESC><P>Stored high-voltage chassis isolation measurement in kOhm.</P></DESC>
+            <REQUEST>
+              <SHORT-NAME>RQ_ReadIsolation</SHORT-NAME>
+              <PARAMS>
+                <PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST""><SHORT-NAME>SID</SHORT-NAME><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x22</CODED-VALUE></PARAM>
+                <PARAM SEMANTIC=""DATA-ID"" xsi:type=""CODED-CONST""><SHORT-NAME>DID</SHORT-NAME><BYTE-POSITION>1</BYTE-POSITION><CODED-VALUE>0xF1B5</CODED-VALUE></PARAM>
+              </PARAMS>
+            </REQUEST>
+            <POS-RESPONSES>
+              <POS-RESPONSE ID=""PR_HEV_ReadIsolation"">
+                <SHORT-NAME>PR_ReadIsolation</SHORT-NAME>
+                <PARAMS>
+                  <PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST""><SHORT-NAME>ResponseSID</SHORT-NAME><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x62</CODED-VALUE></PARAM>
+                  <PARAM SEMANTIC=""DATA"" xsi:type=""VALUE"" DOP-REF=""DOP_HV_ISOLATION""><SHORT-NAME>HV_Isolation_Data</SHORT-NAME><BYTE-POSITION>3</BYTE-POSITION><BIT-LENGTH>16</BIT-LENGTH></PARAM>
+                </PARAMS>
+              </POS-RESPONSE>
+            </POS-RESPONSES>
+          </DIAG-SERVICE>
+        </DIAG-COMMS>
+      </ECU-VARIANT>
+    </ECU-VARIANTS>
+  </DIAG-LAYER-CONTAINER>
+</ODX>";
+    }
+
+    /// <summary>
+    /// Generates an ISO 22901-1 ODX-V Vehicle Topology file connecting Vehicle Bus Links -> Logical Links -> BaseVariant &amp; Protocol.
+    /// </summary>
+    public static string CreateSampleOdxVXml(string ecuName = "EngineControlUnit", string vehicleModel = "BlueBinaries GT-2026")
+    {
+        return $@"<?xml version=""1.0"" encoding=""utf-8""?>
+<ODX MODEL-VERSION=""2.2.0"" xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance"">
+  <VEHICLE-INFO-SPEC ID=""VIS_GT2026"">
+    <SHORT-NAME>VIS_{vehicleModel.Replace(" ", "_").Replace("-", "")}</SHORT-NAME>
+    <LONG-NAME>Vehicle Information Specification for {vehicleModel}</LONG-NAME>
+    <VEHICLE-INFORMATIONS>
+      <VEHICLE-INFORMATION ID=""VI_GT2026"">
+        <SHORT-NAME>VI_{vehicleModel.Replace(" ", "_").Replace("-", "")}</SHORT-NAME>
+        <LONG-NAME>{vehicleModel}</LONG-NAME>
+        <MODEL>{vehicleModel}</MODEL>
+        <COMPANY>BlueBinaries Engineering</COMPANY>
+        <MODEL-YEAR>2026</MODEL-YEAR>
+
+        <PHYSICAL-VEHICLE-LINKS>
+          <PHYSICAL-VEHICLE-LINK ID=""PVL_PT_CAN_500k"" TYPE=""ISO_11898_CAN_HS"">
+            <SHORT-NAME>PVL_PT_CAN_500k</SHORT-NAME>
+            <LONG-NAME>Powertrain High-Speed CAN Bus (500 kbps)</LONG-NAME>
+            <DESC><P>Primary powertrain diagnostic CAN channel (ISO 15765-2).</P></DESC>
+          </PHYSICAL-VEHICLE-LINK>
+        </PHYSICAL-VEHICLE-LINKS>
+
+        <LOGICAL-LINKS>
+          <GATEWAY-LOGICAL-LINK ID=""LL_{ecuName}"">
+            <SHORT-NAME>LL_{ecuName}</SHORT-NAME>
+            <LONG-NAME>{ecuName} Logical Diagnostic Link</LONG-NAME>
+            <PHYSICAL-VEHICLE-LINK-REF ID-REF=""PVL_PT_CAN_500k""/>
+            <PROTOCOL-REF ID-REF=""PR_UDSonCAN"" DOCREF=""DLC_PR_UDSonCAN"" DOCTYPE=""CONTAINER""/>
+            <BASE-VARIANT-REF ID-REF=""BV_{ecuName}"" DOCREF=""DLC_{ecuName}"" DOCTYPE=""CONTAINER""/>
+            <FUNCTIONAL-GROUP-REF ID-REF=""FG_Powertrain"" DOCREF=""DLC_{ecuName}"" DOCTYPE=""CONTAINER""/>
+            <LINK-COMPARAM-REFS>
+              <LINK-COMPARAM-REF ID-REF=""CP_CanPhysReqId"">
+                <SHORT-NAME>CP_CanPhysReqId</SHORT-NAME>
+                <SIMPLE-VALUE>0x7E0</SIMPLE-VALUE>
+              </LINK-COMPARAM-REF>
+              <LINK-COMPARAM-REF ID-REF=""CP_CanPhysRespId"">
+                <SHORT-NAME>CP_CanPhysRespId</SHORT-NAME>
+                <SIMPLE-VALUE>0x7E8</SIMPLE-VALUE>
+              </LINK-COMPARAM-REF>
+              <LINK-COMPARAM-REF ID-REF=""CP_CanFuncReqId"">
+                <SHORT-NAME>CP_CanFuncReqId</SHORT-NAME>
+                <SIMPLE-VALUE>0x7DF</SIMPLE-VALUE>
+              </LINK-COMPARAM-REF>
+            </LINK-COMPARAM-REFS>
+          </GATEWAY-LOGICAL-LINK>
+        </LOGICAL-LINKS>
+      </VEHICLE-INFORMATION>
+    </VEHICLE-INFORMATIONS>
+  </VEHICLE-INFO-SPEC>
+</ODX>";
+    }
+
+    /// <summary>
+    /// Creates a complete ISO 22901-1 &amp; ISO 22901-2 compliant .pdx archive package with index.xml (ABLOCKS),
+    /// ODX-C (Protocols &amp; ComParamSpecs), ODX-E (Shared Services &amp; Units), ODX-D (FunctionalGroup, BaseVariant, ECU Variants),
+    /// and ODX-V (Vehicle Topology &amp; Logical Links).
     /// </summary>
     public static string CreateSamplePdxFile(string targetPdxFilePath, string ecuName = "EngineControlUnit")
     {
@@ -691,34 +1532,28 @@ public static class SampleOdxGenerator
         }
 
         var indexXml = CreateSamplePdxIndexXml(ecuName);
-        var odxDXml = CreateSampleOdxXml(ecuName);
         var odxCXml = CreateSampleOdxCXml();
+        var odxEXml = CreateSampleOdxSharedDataXml();
+        var odxDXml = CreateSampleIsoLayeredOdxDXml(ecuName);
+        var odxVXml = CreateSampleOdxVXml(ecuName);
 
         using (var zipStream = new FileStream(targetPdxFilePath, FileMode.Create, FileAccess.Write))
         using (var archive = new ZipArchive(zipStream, ZipArchiveMode.Create))
         {
-            // index.xml
-            var indexEntry = archive.CreateEntry("index.xml", CompressionLevel.Optimal);
-            using (var writer = new StreamWriter(indexEntry.Open(), Encoding.UTF8))
-            {
-                writer.Write(indexXml);
-            }
-
-            // odx-d file
-            var odxDEntry = archive.CreateEntry($"odx-d/{ecuName}.odx-d", CompressionLevel.Optimal);
-            using (var writer = new StreamWriter(odxDEntry.Open(), Encoding.UTF8))
-            {
-                writer.Write(odxDXml);
-            }
-
-            // odx-c file
-            var odxCEntry = archive.CreateEntry("odx-c/Protocols_UDS.odx-c", CompressionLevel.Optimal);
-            using (var writer = new StreamWriter(odxCEntry.Open(), Encoding.UTF8))
-            {
-                writer.Write(odxCXml);
-            }
+            WriteZipEntry(archive, "index.xml", indexXml);
+            WriteZipEntry(archive, "odx-c/Protocols_UDS.odx-c", odxCXml);
+            WriteZipEntry(archive, "odx-e/Shared_UDS_Services.odx-e", odxEXml);
+            WriteZipEntry(archive, $"odx-d/{ecuName}.odx-d", odxDXml);
+            WriteZipEntry(archive, "odx-v/VehicleTopology.odx-v", odxVXml);
         }
 
         return targetPdxFilePath;
+    }
+
+    private static void WriteZipEntry(ZipArchive archive, string entryPath, string content)
+    {
+        var entry = archive.CreateEntry(entryPath, CompressionLevel.Optimal);
+        using var writer = new StreamWriter(entry.Open(), Encoding.UTF8);
+        writer.Write(content);
     }
 }

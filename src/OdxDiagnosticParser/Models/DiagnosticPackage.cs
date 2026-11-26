@@ -1,7 +1,7 @@
 namespace OdxDiagnosticParser.Models;
 
 /// <summary>
-/// Represents a complete diagnostic package derived from an ODX XML file or a PDX container.
+/// Represents a complete diagnostic package derived from an ODX XML file or a PDX container (ISO 22901-1 &amp; ISO 22901-2).
 /// </summary>
 public class DiagnosticPackage
 {
@@ -9,74 +9,58 @@ public class DiagnosticPackage
     public string Description { get; set; } = string.Empty;
     public string Version { get; set; } = "1.0";
     public string SourcePath { get; set; } = string.Empty;
+    public string ExtractedDirectory { get; set; } = string.Empty;
     public bool IsFromPdx { get; set; }
     public DateTime ExtractedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>
-    /// Metadata from PDX index.xml catalog (if extracted from PDX).
+    /// Metadata from PDX index.xml catalog (ISO 22901-2).
     /// </summary>
     public PdxCatalog? Catalog { get; set; }
 
     /// <summary>
-    /// Diagnostic layers parsed from the package (ECU Variants, Base Variants, etc.).
+    /// ISO 22901-1 ODX-V Vehicle Information Specs (Vehicle Topology &amp; Logical Links).
+    /// </summary>
+    public List<VehicleInfoSpec> VehicleInfos { get; set; } = new();
+
+    /// <summary>
+    /// ISO 22901-1 ODX-C Communication Parameter Specifications (Prot-Stacks &amp; ComParam Subsets).
+    /// </summary>
+    public List<ComParamSpecInfo> ComParamSpecs { get; set; } = new();
+
+    /// <summary>
+    /// Diagnostic layers parsed from the package (ECU Variants, Base Variants, Protocols, Functional Groups, Shared Data).
     /// </summary>
     public List<DiagnosticLayer> Layers { get; set; } = new();
 
     /// <summary>
-    /// Aggregated list of all ECU Variants across layers.
+    /// Cross-reference and ISO 22901 consistency validation results.
     /// </summary>
+    public List<OdxConsistencyIssue> ConsistencyIssues { get; set; } = new();
+
     public IEnumerable<DiagnosticLayer> EcuVariants =>
         Layers.Where(l => l.LayerType == DiagnosticLayerType.EcuVariant);
 
-    /// <summary>
-    /// Aggregated list of all Base Variants across layers.
-    /// </summary>
     public IEnumerable<DiagnosticLayer> BaseVariants =>
         Layers.Where(l => l.LayerType == DiagnosticLayerType.BaseVariant);
 
-    /// <summary>
-    /// Total count of unique services across all layers.
-    /// </summary>
+    public IEnumerable<DiagnosticLayer> Protocols =>
+        Layers.Where(l => l.LayerType == DiagnosticLayerType.Protocol);
+
+    public IEnumerable<DiagnosticLayer> FunctionalGroups =>
+        Layers.Where(l => l.LayerType == DiagnosticLayerType.FunctionalGroup);
+
+    public IEnumerable<DiagnosticLayer> EcuSharedDatas =>
+        Layers.Where(l => l.LayerType == DiagnosticLayerType.EcuSharedData);
+
     public int TotalServicesCount => Layers.Sum(l => l.Services.Count);
-
-    /// <summary>
-    /// Total count of Current Data services (live telemetry / measurements) across all layers.
-    /// </summary>
+    public int UniqueServicesCount => Layers.Sum(l => l.Services.Count(s => !s.IsInherited));
     public int TotalCurrentDataServicesCount => Layers.Sum(l => l.Services.Count(s => s.DataCategory == "Current Data"));
-
-    /// <summary>
-    /// Total count of Stored Data services (fault memory, DTCs, freeze frames, identification) across all layers.
-    /// </summary>
     public int TotalStoredDataServicesCount => Layers.Sum(l => l.Services.Count(s => s.DataCategory == "Stored Data"));
-
-    /// <summary>
-    /// Total count of System Control services across all layers.
-    /// </summary>
     public int TotalSystemControlServicesCount => Layers.Sum(l => l.Services.Count(s => s.DataCategory == "System Control"));
-
-    /// <summary>
-    /// Total count of Data Identifiers (DIDs) across all layers.
-    /// </summary>
     public int TotalDidsCount => Layers.Sum(l => l.DataIdentifiers.Count);
-
-    /// <summary>
-    /// Total count of Current Data DIDs (sensor & live measurements) across all layers.
-    /// </summary>
     public int TotalCurrentDataDidsCount => Layers.Sum(l => l.DataIdentifiers.Count(d => d.DataCategory == "Current Data"));
-
-    /// <summary>
-    /// Total count of Stored Data DIDs (identification, VIN, serial, calibration) across all layers.
-    /// </summary>
     public int TotalStoredDataDidsCount => Layers.Sum(l => l.DataIdentifiers.Count(d => d.DataCategory == "Stored Data"));
-
-    /// <summary>
-    /// Total count of Diagnostic Trouble Codes (DTCs) across all layers.
-    /// </summary>
     public int TotalDtcsCount => Layers.Sum(l => l.DiagnosticTroubleCodes.Count);
-
-    /// <summary>
-    /// Total count of Communication Parameters across all layers.
-    /// </summary>
     public int TotalComParamsCount => Layers.Sum(l => l.CommunicationParameters.Count);
 }
-

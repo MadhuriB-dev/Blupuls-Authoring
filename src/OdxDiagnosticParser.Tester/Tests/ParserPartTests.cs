@@ -43,6 +43,9 @@ public static class ParserPartTests
         runner.RunTest("13. Temporary Diagnostic Session Lifecycle & Auto-Cleanup", TestDiagnosticSessionLifecycle);
         runner.RunTest("14. Diagnostic Session Permanent Copy Saving", TestDiagnosticSessionSavePermanentCopy);
         runner.RunTest("15. Stored vs Current Diagnostic Data Categorization", TestStoredAndCurrentDataCategorization);
+        runner.RunTest("16. ISO 22901-2 ABLOCKs & Cross-File ODX-C/E/D/V Linking", TestIsoStandardPdxAndOdxCrossLinking);
+        runner.RunTest("17. ISO 22901-1 Inheritance Exclusions, Patterns & Consistency", TestIsoInheritanceAndConsistencyValidation);
+        runner.RunTest("18. ISO Authoring Round-Trip (DID/DOP/Service/DTC/ComParam) & RelinkPackage", TestIsoAuthoringRoundTripAndRelinking);
 
         runner.PrintSummary();
     }
@@ -494,6 +497,346 @@ public static class ParserPartTests
         {
             if (File.Exists(tempFile))
                 File.Delete(tempFile);
+        }
+    }
+
+    public static void TestIsoStandardPdxAndOdxCrossLinking()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "IsoLinkTest_" + Guid.NewGuid().ToString("N")[..8]);
+        try
+        {
+            Directory.CreateDirectory(tempDir);
+            var pdxPath = Path.Combine(tempDir, "IsoPowertrain.pdx");
+            SampleOdxGenerator.CreateSamplePdxFile(pdxPath, "EngineControlUnit");
+
+            var package = PdxExtractor.ExtractAndParse(pdxPath);
+
+            // 1. ISO 22901-2 ABLOCKS
+            TestRunner.AssertNotNull(package.Catalog, "Catalog must not be null.");
+            TestRunner.AssertTrue(package.Catalog.Ablocks.Count >= 4, "ISO 22901-2 catalog must contain at least 4 ABLOCKs (ODX-C, ODX-E, ODX-D, ODX-V).");
+            TestRunner.AssertTrue(package.Catalog.Ablocks.Any(a => a.Category == "ODX-COMPARAM-SPEC"), "Must contain ODX-COMPARAM-SPEC ABLOCK.");
+            TestRunner.AssertTrue(package.Catalog.Ablocks.Any(a => a.Category == "ODX-VEHICLE-INFO"), "Must contain ODX-VEHICLE-INFO ABLOCK.");
+
+            // 2. ODX-C ComParamSpec & Protocol linkage
+            TestRunner.AssertNotEmpty(package.ComParamSpecs, "ODX-C ComParamSpecs must be parsed.");
+            var proto = package.Protocols.FirstOrDefault(p => p.ShortName == "PR_UDSonCAN");
+            TestRunner.AssertNotNull(proto, "Protocol PR_UDSonCAN must be parsed.");
+            TestRunner.AssertTrue(proto.CommunicationParameters.Any(c => c.Name == "CP_P2Max"), "Protocol must inherit CP_P2Max from ODX-C COMPARAM-SPEC.");
+
+            // 3. ODX-V Vehicle Topology & Logical Links
+            TestRunner.AssertNotEmpty(package.VehicleInfos, "ODX-V VehicleInfos must be parsed.");
+            var ll = package.VehicleInfos[0].LogicalLinks.FirstOrDefault(l => l.ShortName == "LL_EngineControlUnit");
+            TestRunner.AssertNotNull(ll, "LogicalLink LL_EngineControlUnit must exist.");
+            TestRunner.AssertEqual("BV_EngineControlUnit", ll.ResolvedBaseVariantName, "LogicalLink must resolve BaseVariant.");
+            TestRunner.AssertEqual("PR_UDSonCAN", ll.ResolvedProtocolName, "LogicalLink must resolve Protocol.");
+
+            // 4. Cross-File & Multi-Layer PARENT-REF Inheritance onto ECU Variants
+            var gasVariant = package.EcuVariants.FirstOrDefault(ev => ev.ShortName == "EngineControlUnit_Gasoline");
+            TestRunner.AssertNotNull(gasVariant, "ECU Variant EngineControlUnit_Gasoline must exist.");
+            TestRunner.AssertTrue(gasVariant.InheritanceResolved, "ECU Variant inheritance must be resolved.");
+
+            // Must have inherited services from Shared Data (SD_15765_3_Services), Functional Group (FG_Powertrain), BaseVariant (BV_EngineControlUnit)
+            TestRunner.AssertTrue(gasVariant.Services.Any(s => s.ShortName == "DiagnosticSessionControl" && s.IsInherited), "Must inherit 0x10 SessionControl from SharedData via BaseVariant.");
+            TestRunner.AssertTrue(gasVariant.Services.Any(s => s.ShortName == "ReadDataByIdentifier_VIN" && s.IsInherited && s.DefinedInLayer == "BV_EngineControlUnit"), "Must inherit ReadVIN from BaseVariant.");
+            TestRunner.AssertTrue(gasVariant.Services.Any(s => s.ShortName == "ReadDataByIdentifier_FuelRailPressure" && !s.IsInherited), "Must retain own Gasoline FuelRailPressure service.");
+
+            // Verify cross-file UNIT-REF resolution (DOP_FUEL_PRESSURE -> DLC_SD_15765_3 UNIT_KPA -> "kPa")
+            var fuelDid = gasVariant.DataIdentifiers.FirstOrDefault(d => d.DidHex == "0x0123");
+            TestRunner.AssertNotNull(fuelDid, "Gasoline variant must expose DID 0x0123 FuelRailPressure.");
+            TestRunner.AssertEqual("kPa", fuelDid.Unit, "Cross-file UNIT-REF UNIT_KPA must resolve to 'kPa'.");
+
+            // Zero consistency errors/warnings on compliant package
+            TestRunner.AssertEqual(0, package.ConsistencyIssues.Count, "ISO-compliant sample PDX should produce 0 consistency issues.");
+        }
+        finally
+        {
+            TryDeleteDirectory(tempDir);
+        }
+    }
+
+    public static void TestIsoInheritanceAndConsistencyValidation()
+    {
+        var xml = @"<?xml version=""1.0"" encoding=""utf-8""?>
+<ODX MODEL-VERSION=""2.2.0"" xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance"">
+  <DIAG-LAYER-CONTAINER ID=""DLC_TEST"">
+    <SHORT-NAME>DLC_TEST</SHORT-NAME>
+    <BASE-VARIANTS>
+      <BASE-VARIANT ID=""BV_TEST"">
+        <SHORT-NAME>BV_TEST</SHORT-NAME>
+        <DIAG-COMMS>
+          <DIAG-SERVICE ID=""S1"" SEMANTIC=""SESSION""><SHORT-NAME>KeepService</SHORT-NAME><REQUEST><PARAMS><PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST""><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x10</CODED-VALUE></PARAM></PARAMS></REQUEST></DIAG-SERVICE>
+          <DIAG-SERVICE ID=""S2"" SEMANTIC=""ROUTINE""><SHORT-NAME>ExcludedService</SHORT-NAME><REQUEST><PARAMS><PARAM SEMANTIC=""SERVICE-ID"" xsi:type=""CODED-CONST""><BYTE-POSITION>0</BYTE-POSITION><CODED-VALUE>0x31</CODED-VALUE></PARAM></PARAMS></REQUEST></DIAG-SERVICE>
+        </DIAG-COMMS>
+      </BASE-VARIANT>
+    </BASE-VARIANTS>
+    <ECU-VARIANTS>
+      <ECU-VARIANT ID=""EV_TEST"">
+        <SHORT-NAME>EV_TEST</SHORT-NAME>
+        <PARENT-REFS>
+          <PARENT-REF xsi:type=""BASE-VARIANT-REF"" ID-REF=""BV_TEST"">
+            <NOT-INHERITED-DIAG-COMMS>
+              <NOT-INHERITED-DIAG-COMM><DIAG-COMM-SNREF SHORT-NAME=""ExcludedService""/></NOT-INHERITED-DIAG-COMM>
+            </NOT-INHERITED-DIAG-COMMS>
+          </PARENT-REF>
+          <PARENT-REF xsi:type=""PROTOCOL-REF"" ID-REF=""MISSING_PROTO_REF""/>
+        </PARENT-REFS>
+        <ECU-VARIANT-PATTERNS>
+          <ECU-VARIANT-PATTERN>
+            <SHORT-NAME>Pat_Test</SHORT-NAME>
+            <MATCHING-PARAMETERS>
+              <MATCHING-PARAMETER>
+                <EXPECTED-VALUE>V99</EXPECTED-VALUE>
+                <DIAG-COMM-SNREF SHORT-NAME=""KeepService""/>
+                <OUT-PARAM-IF-SNREF SHORT-NAME=""Ver""/>
+              </MATCHING-PARAMETER>
+            </MATCHING-PARAMETERS>
+          </ECU-VARIANT-PATTERN>
+        </ECU-VARIANT-PATTERNS>
+      </ECU-VARIANT>
+    </ECU-VARIANTS>
+  </DIAG-LAYER-CONTAINER>
+</ODX>";
+
+        var pkg = OdxParser.ParseXml(xml, "InheritanceTest.odx-d");
+        var ev = pkg.EcuVariants.FirstOrDefault();
+        TestRunner.AssertNotNull(ev, "EV_TEST must be parsed.");
+        TestRunner.AssertTrue(ev.Services.Any(s => s.ShortName == "KeepService" && s.IsInherited), "KeepService must be inherited.");
+        TestRunner.AssertFalse(ev.Services.Any(s => s.ShortName == "ExcludedService"), "ExcludedService must NOT be inherited due to NOT-INHERITED-DIAG-COMMS.");
+        TestRunner.AssertTrue(ev.VariantPatterns.Count == 1 && ev.VariantPatterns[0].Summary.Contains("V99"), "ECU-VARIANT-PATTERN must be parsed.");
+        TestRunner.AssertTrue(pkg.ConsistencyIssues.Any(i => i.Message.Contains("MISSING_PROTO_REF")), "Broken PARENT-REF must be flagged in ConsistencyIssues.");
+    }
+
+    private static void TestIsoAuthoringRoundTripAndRelinking()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), "OdxAuthoringRoundTrip_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempRoot);
+        var tempPdxPath = Path.Combine(tempRoot, "AuthoredRoundTrip.pdx");
+
+        try
+        {
+            var proto = new DiagnosticLayer
+            {
+                LayerType = DiagnosticLayerType.Protocol,
+                Id = "PR_UDS_RT",
+                ShortName = "PR_UDS_RT",
+                ContainerShortName = "Protocols_UDS"
+            };
+            proto.CommunicationParameters.Add(new CommunicationParameter
+            {
+                Name = "CP_P2Max",
+                Value = "50000",
+                Unit = "us",
+                Protocol = "UDS",
+                Description = "P2 server timing",
+                DefinedInLayer = "PR_UDS_RT"
+            });
+
+            var bv = new DiagnosticLayer
+            {
+                LayerType = DiagnosticLayerType.BaseVariant,
+                Id = "BV_RT",
+                ShortName = "BV_RT",
+                ContainerShortName = "BV_RT"
+            };
+            bv.ParentRefs.Add(new LayerParentRef
+            {
+                IdRef = "PR_UDS_RT",
+                ShortNameRef = "PR_UDS_RT",
+                DocRef = "Protocols_UDS",
+                ParentRefType = "PROTOCOL-REF"
+            });
+
+            var ev = new DiagnosticLayer
+            {
+                LayerType = DiagnosticLayerType.EcuVariant,
+                Id = "EV_RT_V1",
+                ShortName = "EV_RT_V1",
+                ContainerShortName = "EV_RT_V1"
+            };
+            ev.ParentRefs.Add(new LayerParentRef
+            {
+                IdRef = "BV_RT",
+                ShortNameRef = "BV_RT",
+                DocRef = "BV_RT",
+                ParentRefType = "BASE-VARIANT-REF"
+            });
+
+            var dop = new DataObjectProperty
+            {
+                Id = "DOP_OilTemp",
+                ShortName = "DOP_OilTemp",
+                LongName = "Engine Oil Temperature",
+                Category = "LINEAR",
+                BaseDataType = "A_UINT32",
+                BitLength = 16,
+                PhysicalUnit = "degC",
+                Factor = 0.1,
+                Offset = -40,
+                MinPhysicalValue = -40,
+                MaxPhysicalValue = 215,
+                DefinedInLayer = "EV_RT_V1"
+            };
+            ev.DataObjectProperties.Add(dop);
+
+            var did = new DiagnosticDataIdentifier
+            {
+                DidHex = "0x2010",
+                DidDecimal = 0x2010,
+                ShortName = "OilTemperature",
+                LongName = "Engine Oil Temperature",
+                DataCategory = "Current Data",
+                Access = "Read/Write",
+                AssociatedService = "0x22 / 0x2E",
+                Description = "Authored engine oil temp DID",
+                DefinedInLayer = "EV_RT_V1"
+            };
+            did.ApplyDop(dop);
+            ev.DataIdentifiers.Add(did);
+
+            ev.Services.Add(new DiagnosticService
+            {
+                Id = "SVC_Read_2010",
+                ShortName = "Read_OilTemperature",
+                LongName = "Read Oil Temperature",
+                ServiceIdHex = "0x22",
+                PositiveResponseSidHex = "0x62",
+                Semantic = "CURRENT-DATA",
+                DataCategory = "Current Data",
+                Addressing = "Physical",
+                DefinedInLayer = "EV_RT_V1",
+                DefinedInLayerType = "EcuVariant",
+                RequestParameters =
+                {
+                    new DiagnosticParameter { Name = "SID", ParameterType = "CODED-CONST", BytePosition = 0, BitLength = 8, DefaultValueHex = "0x22" },
+                    new DiagnosticParameter { Name = "DID", ParameterType = "CODED-CONST", BytePosition = 1, BitLength = 16, DefaultValueHex = "0x2010" }
+                },
+                ResponseParameters =
+                {
+                    new DiagnosticParameter { Name = "SID_PR", ParameterType = "CODED-CONST", BytePosition = 0, BitLength = 8, DefaultValueHex = "0x62" },
+                    new DiagnosticParameter { Name = "DID_PR", ParameterType = "CODED-CONST", BytePosition = 1, BitLength = 16, DefaultValueHex = "0x2010" },
+                    new DiagnosticParameter { Name = "OilTemperature", ParameterType = "VALUE", BytePosition = 3, BitLength = 16, DataType = "A_UINT32", DopRef = dop.Id }
+                },
+                NegativeResponses = { "0x13", "0x22", "0x31" }
+            });
+
+            ev.Services.Add(new DiagnosticService
+            {
+                Id = "SVC_Write_2010",
+                ShortName = "Write_OilTemperature",
+                LongName = "Write Oil Temperature",
+                ServiceIdHex = "0x2E",
+                PositiveResponseSidHex = "0x6E",
+                Semantic = "CURRENT-DATA",
+                DataCategory = "Current Data",
+                Addressing = "Physical",
+                DefinedInLayer = "EV_RT_V1",
+                DefinedInLayerType = "EcuVariant",
+                RequestParameters =
+                {
+                    new DiagnosticParameter { Name = "SID", ParameterType = "CODED-CONST", BytePosition = 0, BitLength = 8, DefaultValueHex = "0x2E" },
+                    new DiagnosticParameter { Name = "DID", ParameterType = "CODED-CONST", BytePosition = 1, BitLength = 16, DefaultValueHex = "0x2010" },
+                    new DiagnosticParameter { Name = "OilTemperature", ParameterType = "VALUE", BytePosition = 3, BitLength = 16, DataType = "A_UINT32", DopRef = dop.Id }
+                },
+                ResponseParameters =
+                {
+                    new DiagnosticParameter { Name = "SID_PR", ParameterType = "CODED-CONST", BytePosition = 0, BitLength = 8, DefaultValueHex = "0x6E" },
+                    new DiagnosticParameter { Name = "DID_PR", ParameterType = "CODED-CONST", BytePosition = 1, BitLength = 16, DefaultValueHex = "0x2010" }
+                },
+                NegativeResponses = { "0x13", "0x31", "0x33" }
+            });
+
+            ev.DiagnosticTroubleCodes.Add(new DiagnosticTroubleCode
+            {
+                Id = "DTC_019800",
+                TroubleCode = 0x019800,
+                TroubleCodeHex = "0x019800",
+                DisplayCode = "P019800",
+                Description = "Engine Oil Temperature Sensor High",
+                Severity = "Warning",
+                FailureTypeByte = "00",
+                DefinedInLayer = "EV_RT_V1"
+            });
+
+            var pkg = new DiagnosticPackage
+            {
+                Name = "AuthoredRoundTrip",
+                Description = "ISO authoring round-trip verification package",
+                Version = "1.0",
+                Layers = { proto, bv, ev }
+            };
+
+            OdxIsoLinker.LinkPackage(pkg);
+            TestRunner.AssertTrue(ev.CommunicationParameters.Any(c => c.Name == "CP_P2Max" && c.IsInherited), "EV_RT_V1 must inherit CP_P2Max through BV_RT -> PR_UDS_RT.");
+
+            OdxXmlSerializer.ExportToPdx(pkg, tempPdxPath);
+            TestRunner.AssertTrue(File.Exists(tempPdxPath), "Exported PDX file must exist on disk.");
+
+            var reloaded = PdxExtractor.ExtractAndParse(tempPdxPath);
+            TestRunner.AssertNotNull(reloaded.Catalog, "Reloaded PDX must have index.xml ABLOCK catalog.");
+
+            var reloadedEv = reloaded.EcuVariants.FirstOrDefault(l => l.ShortName == "EV_RT_V1");
+            TestRunner.AssertNotNull(reloadedEv, "Reloaded PDX must contain ECU variant EV_RT_V1.");
+            TestRunner.AssertTrue(reloadedEv.ParentRefs.Any(p => p.IsResolved && p.ResolvedLayerShortName == "BV_RT"), "Reloaded EV_RT_V1 must have resolved PARENT-REF to BV_RT.");
+
+            var reloadedDop = reloadedEv.DataObjectProperties.FirstOrDefault(d => d.ShortName == "DOP_OilTemp");
+            TestRunner.AssertNotNull(reloadedDop, "Reloaded EV_RT_V1 must preserve authored DOP_OilTemp.");
+            TestRunner.AssertTrue(reloadedDop.PhysicalUnit == "degC" && Math.Abs(reloadedDop.Factor - 0.1) < 1e-6 && Math.Abs(reloadedDop.Offset - (-40)) < 1e-6 && reloadedDop.BitLength == 16,
+                "Reloaded DOP_OilTemp must preserve unit, factor, offset, and bit length.");
+
+            var reloadedDid = reloadedEv.DataIdentifiers.FirstOrDefault(d => d.DidHex == "0x2010");
+            TestRunner.AssertNotNull(reloadedDid, "Reloaded EV_RT_V1 must preserve authored DID 0x2010.");
+            TestRunner.AssertTrue(reloadedDid.DopRef == "DOP_OilTemp" && reloadedDid.Unit == "degC" && Math.Abs(reloadedDid.ScalingFactor - 0.1) < 1e-6 && Math.Abs(reloadedDid.Offset - (-40)) < 1e-6,
+                "Reloaded DID 0x2010 must retain DopRef, unit, scaling factor, and offset.");
+            TestRunner.AssertTrue(reloadedDid.Access == "Read/Write", "Reloaded DID 0x2010 must preserve Read/Write access derived from 0x22 and 0x2E services.");
+
+            TestRunner.AssertTrue(reloadedEv.Services.Any(s => s.ShortName == "Read_OilTemperature" && s.ServiceIdHex == "0x22" && s.NegativeResponses.Contains("0x22")),
+                "Reloaded EV_RT_V1 must preserve 0x22 Read service and NRCs.");
+            TestRunner.AssertTrue(reloadedEv.Services.Any(s => s.ShortName == "Write_OilTemperature" && s.ServiceIdHex == "0x2E" && s.NegativeResponses.Contains("0x33")),
+                "Reloaded EV_RT_V1 must preserve 0x2E Write service and NRCs.");
+            TestRunner.AssertTrue(reloadedEv.DiagnosticTroubleCodes.Any(d => d.DisplayCode == "P019800" || d.TroubleCodeHex == "0x019800"),
+                "Reloaded EV_RT_V1 must preserve authored DTC P019800.");
+            TestRunner.AssertTrue(reloadedEv.CommunicationParameters.Any(c => c.Name == "CP_P2Max"),
+                "Reloaded EV_RT_V1 must preserve inherited CP_P2Max.");
+
+            // Verify OdxIsoLinker.RelinkPackage adds & removes inherited services dynamically when ParentRefs are mutated
+            var bvExtra = new DiagnosticLayer
+            {
+                LayerType = DiagnosticLayerType.BaseVariant,
+                Id = "BV_Extra",
+                ShortName = "BV_Extra",
+                ContainerShortName = "BV_Extra"
+            };
+            bvExtra.Services.Add(new DiagnosticService
+            {
+                Id = "SVC_ExtraVersion",
+                ShortName = "ReadExtraVersion",
+                ServiceIdHex = "0x22",
+                PositiveResponseSidHex = "0x62",
+                DataCategory = "Stored Data",
+                DefinedInLayer = "BV_Extra",
+                DefinedInLayerType = "BaseVariant"
+            });
+            reloaded.Layers.Add(bvExtra);
+
+            var addedRef = new LayerParentRef
+            {
+                IdRef = "BV_Extra",
+                ShortNameRef = "BV_Extra",
+                ParentRefType = "BASE-VARIANT-REF"
+            };
+            reloadedEv.ParentRefs.Add(addedRef);
+            OdxIsoLinker.RelinkPackage(reloaded);
+            TestRunner.AssertTrue(reloadedEv.Services.Any(s => s.ShortName == "ReadExtraVersion" && s.IsInherited),
+                "RelinkPackage must resolve newly added PARENT-REF inheritance.");
+
+            reloadedEv.ParentRefs.Remove(addedRef);
+            OdxIsoLinker.RelinkPackage(reloaded);
+            TestRunner.AssertFalse(reloadedEv.Services.Any(s => s.ShortName == "ReadExtraVersion"),
+                "RelinkPackage must remove inherited service after PARENT-REF is deleted.");
+        }
+        finally
+        {
+            TryDeleteDirectory(tempRoot);
         }
     }
 
